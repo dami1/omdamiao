@@ -62,6 +62,21 @@ button, input, select, textarea { font: inherit; color: var(--ink); }
   .mobile-title { display: flex !important; flex: 1 !important; min-width: 0; letter-spacing: 1px; text-transform: uppercase; }
 }
 
+/* abas de patches (como no plugdata) */
+.tabbar { flex: none; display: flex; align-items: stretch; background: var(--desk); border-bottom: var(--frame); min-height: 30px; overflow-x: auto; overflow-y: hidden; user-select: none; -webkit-user-select: none; scrollbar-width: thin; }
+.tabbar .tab { display: flex; align-items: center; gap: 4px; padding: 0 4px 0 12px; border-right: var(--frame); background: var(--paper); color: var(--ink); cursor: pointer; white-space: nowrap; max-width: 260px; flex: none; }
+.tabbar .tab .tl { overflow: hidden; text-overflow: ellipsis; }
+.tabbar .tab.on { background: var(--ink); color: var(--paper); }
+.tabbar .tab:focus-visible { outline: 2px dashed var(--ink); outline-offset: -4px; }
+.tabbar .tab.on:focus-visible { outline-color: var(--paper); }
+.tabbar .tx { font: inherit; border: 0; background: none; color: inherit; cursor: pointer; padding: 2px 7px; opacity: .65; }
+.tabbar .tx:hover { opacity: 1; }
+.tabbar .tplus { font: inherit; border: 0; border-right: var(--frame); background: var(--paper); color: var(--ink); padding: 0 13px; cursor: pointer; flex: none; }
+.tabbar .tplus:hover { background: var(--ink); color: var(--paper); }
+.abs-list { max-height: 50vh; overflow-y: auto; }
+.abs-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; padding: 6px 0; border-bottom: var(--frame); }
+.abs-row .acts { margin: 0; }
+
 /* menus GEM */
 .gem-menu { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; position: fixed; z-index: 9800; min-width: 230px; max-width: calc(100vw - 16px); max-height: 72vh; overflow-y: auto; background: var(--paper); color: var(--ink); border: var(--frame); box-shadow: 4px 4px 0 var(--shadow); padding: 0; }
 .gem-menu .opt { display: flex; justify-content: space-between; align-items: center; gap: 22px; width: 100%; padding: 4px 14px; border: 0; background: none; text-align: left; cursor: pointer; white-space: nowrap; font: inherit; color: var(--ink); }
@@ -196,6 +211,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <span class="mobile-title">OMDamião</span>
   <button class="desk-menu" data-menu="file" aria-haspopup="menu">Arquivo</button>
   <button class="desk-menu" data-menu="edit" aria-haspopup="menu">Editar</button>
+  <button class="desk-menu" data-menu="abs" aria-haspopup="menu">Abstrações</button>
   <button class="desk-menu" data-menu="basic" aria-haspopup="menu">Básico</button>
   <button class="desk-menu" data-menu="gen" aria-haspopup="menu">Gerar</button>
   <button class="desk-menu" data-menu="proc" aria-haspopup="menu">Processar</button>
@@ -212,6 +228,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <button class="cell" id="mNew" type="button" title="Novo objeto (duplo clique na mesa · Ctrl K)" aria-label="Novo objeto">Novo</button>
   <button class="cell" id="mStop" type="button" title="Parar som (espaço)" aria-label="Parar som">■</button>
 </nav>
+<div class="tabbar" id="tabbar" role="tablist" aria-label="Abas de patches"></div>
 <div id="desktop">
   <div id="canvas">
     <div id="content">
@@ -10884,16 +10901,44 @@ const JZ = (() => {
     return ch;
   }
   // funções do acorde (terça, quinta, sétima e tensões), com o preenchimento usual quando a cifra não as dá
-  const g3 = (c) => c.third ?? c.sus ?? 4;
-  const g5 = (c) => c.fifth ?? (c.n13 === 20 ? 8 : 6);
-  const g7 = (c, fill = true) => c.seventh ?? c.six ?? (fill ? (c.kind === 'min' ? 10 : c.kind === 'dim' ? 9 : 11) : null);
-  const g9 = (c) => c.n9[0] ?? 14;
-  const g11 = (c) => c.n11 ?? ((c.kind === 'maj' || c.kind === 'dom') && c.sus == null ? 18 : 17);
-  const g13 = (c) => c.n13 ?? 21;
-  const tones = (c) => [0, c.third ?? c.sus, c.fifth, c.six, c.seventh, ...c.n9, c.n11, c.n13].filter((x) => x != null);
+  // ─────────── acordes dados por notas, sem cifra ───────────
+  // Um acorde que chega como alturas não é analisado nem ganha função: fica guardado como os intervalos acima do seu baixo, na
+  // ordem em que foi dado (iv = [0, …], podendo passar da oitava), mais as suas classes de altura em posição fechada (pcs).
+  // Onde uma cifra falaria em 3ª, 5ª, 7ª, 9ª…, vale a POSIÇÃO da nota no acorde (a 2ª nota, a 3ª, a 4ª, a 5ª…, do grave ao agudo;
+  // depois da última, o acorde recomeça acima). Nenhuma nota é acrescentada.
+  function fromNotes(midis, label = '') {
+    const ns = [...new Set(midis.map((x) => Math.round(x)))].sort((a, b) => a - b); if (!ns.length) throw new Error('acorde vazio');
+    const iv = ns.map((x) => x - ns[0]), pcs = [...new Set(iv.map((x) => mod(x)))].sort((a, b) => a - b);
+    return { sym: label, root: mod(ns[0]), bass: null, iv, pcs, span: 12 * Math.max(1, Math.ceil((iv[iv.length - 1] + 1) / 12)), kind: 'iv', n9: [], sus: null, alt: false, third: null, fifth: null, six: null, seventh: null, n11: null, n13: null };
+  }
+  const deg = (c, j) => c.iv[j % c.iv.length] + c.span * Math.floor(j / c.iv.length);
+  /** as notas do próprio acorde empilhadas o mais perto possível de um intervalo (5 = quartas, 7 = quintas): devolve as melhores ordens */
+  function ownStacks(c, target, n) {
+    // entram todas as notas do acorde; «vozes» acima disso repete notas por cima
+    const P = c.pcs, k = P.length, m = k, out = [], used = new Array(k).fill(false), cur = [];
+    const walk = () => {
+      if (cur.length === m) {
+        const idx = [...cur]; for (let j = m; j < n && k > 1; j++) idx.push(cur[j % m]);
+        const o = [P[idx[0]]]; let cost = idx[0] === 0 ? 0 : 0.25;
+        for (let j = 1; j < idx.length; j++) { const d = mod(P[idx[j]] - P[idx[j - 1]]) || 12; cost += Math.abs(d - target); o.push(o[j - 1] + d); }
+        out.push({ o, cost }); return;
+      }
+      for (let i = 0; i < k && out.length < 6000; i++) if (!used[i]) { used[i] = true; cur.push(i); walk(); cur.pop(); used[i] = false; }
+    };
+    walk();
+    return out.sort((a, b) => a.cost - b.cost);
+  }
+  const g3 = (c) => (c.iv ? deg(c, 1) : c.third ?? c.sus ?? 4);
+  const g5 = (c) => (c.iv ? deg(c, 2) : c.fifth ?? (c.n13 === 20 ? 8 : 6));
+  const g7 = (c, fill = true) => (c.iv ? (c.iv.length > 3 || fill ? deg(c, 3) : null) : c.seventh ?? c.six ?? (fill ? (c.kind === 'min' ? 10 : c.kind === 'dim' ? 9 : 11) : null));
+  const g9 = (c) => (c.iv ? deg(c, 4) : c.n9[0] ?? 14);
+  const g11 = (c) => (c.iv ? deg(c, 5) : c.n11 ?? ((c.kind === 'maj' || c.kind === 'dom') && c.sus == null ? 18 : 17));
+  const g13 = (c) => (c.iv ? deg(c, 6) : c.n13 ?? 21);
+  const tones = (c) => (c.iv ? [...c.iv] : [0, c.third ?? c.sus, c.fifth, c.six, c.seventh, ...c.n9, c.n11, c.n13].filter((x) => x != null));
   /** escala do acorde (chord scale) */
   function scale(c) {
     const has = (x) => c.n9.includes(x);
+    if (c.iv) return { name: 'as notas do acorde', s: [...c.pcs] };
     if (c.kind === 'dim') return { name: 'diminuta (tom-semitom)', s: [0, 2, 3, 5, 6, 8, 9, 11] };
     if (c.kind === 'hdim') return has(14) ? { name: 'lócrio ♮2', s: [0, 2, 3, 5, 6, 8, 10] } : { name: 'lócrio', s: [0, 1, 3, 5, 6, 8, 10] };
     if (c.kind === 'minmaj') return { name: 'menor melódica', s: [0, 2, 3, 5, 7, 9, 11] };
@@ -10934,6 +10979,7 @@ const JZ = (() => {
   }
   /** posição fechada (four-way close): classes de altura dentro de uma oitava */
   function close(c, tens = 'none') {
+    if (c.iv) return [...c.pcs];
     const s7 = g7(c, false);
     let v = [0, g3(c), g5(c), s7].filter((x) => x != null);
     if (tens !== 'none' && s7 != null) { v[0] = g9(c); if (tens === '913' && c.kind === 'dom') v[2] = g13(c); }
@@ -10964,13 +11010,14 @@ const JZ = (() => {
     return sc;
   }
   function stackPerfect(c, iv, n) {
+    if (c.iv) return ownStacks(c, iv, n)[0].o;
     let best = null, bs = -Infinity;
     scale(c).s.forEach((s0, i) => { const o = Array.from({ length: n }, (_, k) => s0 + k * iv), sc = stackScore(c, o) + (s0 === 0 ? 0.5 : 0) - i * 0.01; if (sc > bs) { bs = sc; best = o; } });
     return best;
   }
   /** pilha diatônica: de `step` em `step` graus da escala (3 = quartas, 4 = quintas), a partir do grau i */
-  function stackDiat(c, step, n, i) { const S = scale(c).s, L = S.length; return Array.from({ length: n }, (_, k) => { const j = i + k * step; return S[mod(j, L)] + 12 * Math.floor(j / L); }); }
-  function stackDiatAuto(c, step, n) { let best = null, bs = -Infinity; scale(c).s.forEach((_, i) => { const o = stackDiat(c, step, n, i), sc = stackScore(c, o) + (i === 0 ? 0.5 : 0) - i * 0.01; if (sc > bs) { bs = sc; best = o; } }); return best; }
+  function stackDiat(c, step, n, i) { if (c.iv) { const k = c.pcs.length, all = ownStacks(c, step === 4 ? 7 : 5, n), hit = all.find((x) => x.o[0] === c.pcs[mod(i, k)]) || all[0]; return hit.o.map((x) => x + 12 * Math.floor(i / k)); } const S = scale(c).s, L = S.length; return Array.from({ length: n }, (_, k) => { const j = i + k * step; return S[mod(j, L)] + 12 * Math.floor(j / L); }); }
+  function stackDiatAuto(c, step, n) { if (c.iv) return ownStacks(c, step === 4 ? 7 : 5, n)[0].o; let best = null, bs = -Infinity; scale(c).s.forEach((_, i) => { const o = stackDiat(c, step, n, i), sc = stackScore(c, o) + (i === 0 ? 0.5 : 0) - i * 0.01; if (sc > bs) { bs = sc; best = o; } }); return best; }
   /** So What (Bill Evans, 1959): três quartas justas e uma terça maior */
   function soWhat(c) {
     const sh = [0, 5, 10, 15, 19];
@@ -10988,6 +11035,11 @@ const JZ = (() => {
   }
   const US = { II: 2, bIII: 3, bV: 6, bVI: 8, VI: 9 };
   function upper(c, which) {
+    if (c.iv) {   // sem cifra: a 2ª e a 4ª nota embaixo, as que sobram por cima
+      const lh = [deg(c, 1), deg(c, 3)].sort((a, b) => a - b), rest = c.iv.filter((_, j) => j !== 1 && j !== 3 && c.iv.length > 2); let up = rest.length ? rest : [c.iv[0]];
+      up = up.map((x) => { let y = x; while (y <= lh[1]) y += 12; return y; }).sort((a, b) => a - b);
+      return { o: [...lh, ...up], w: 'as notas restantes' };
+    }
     let w = which;
     if (w === 'auto') {
       const b9 = c.n9.includes(13), s9 = c.n9.includes(15);
@@ -11012,7 +11064,7 @@ const JZ = (() => {
   }
   /** harmonização em bloco de uma nota de melodia */
   function block(c, m, tech, out) {
-    const T = [...new Set([0, g3(c), g5(c), c.six ?? c.seventh ?? 9].map((x) => mod(x)))], rel = mod(m - c.root), isT = T.includes(rel);
+    const T = c.iv ? [...c.pcs] : [...new Set([0, g3(c), g5(c), c.six ?? c.seventh ?? 9].map((x) => mod(x)))], rel = mod(m - c.root), isT = T.includes(rel);
     let below;
     if (!isT && out === 'dim') below = [m - 3, m - 6, m - 9];
     else { below = []; let skip = !isT; for (let d = 1; d < 13 && below.length < 3; d++) if (T.includes(mod(rel - d))) { if (skip) { skip = false; continue; } below.push(m - d); } }
@@ -11020,7 +11072,7 @@ const JZ = (() => {
     if (tech === 'drop2') v = drop(v, [2]); else if (tech === 'drop3') v = drop(v, [3]); else if (tech === 'locked') v = [m - 12, ...v];
     return { v, passing: !isT && out === 'dim' };
   }
-  return { parse, roman, tones, scale, place, close, invert, drop, DROPS, lead, stackPerfect, stackDiat, stackDiatAuto, soWhat, barron, upper, style, block, g3, g5, g7, g9, g11, g13, nm, pcOf, mod, FL };
+  return { parse, fromNotes, ownStacks, roman, tones, scale, place, close, invert, drop, DROPS, lead, stackPerfect, stackDiat, stackDiatAuto, soWhat, barron, upper, style, block, g3, g5, g7, g9, g11, g13, nm, pcOf, mod, FL };
 })();
 
 /** teclados: um por acorde, com as notas marcadas */
@@ -11043,26 +11095,27 @@ function kbSVG(chords, labels, cap = 14, subs = null) {
   s.push('</svg>');
   return s.join('');
 }
-/** entrada comum: cabo com cifras (de cifra/progressão ou de outro objeto Jazz) ou o campo de texto */
-function jzIn(a, needSym = true) {
-  const v = a.in$v;
-  if (a.in.length) {
-    if (v?.jz && v.jz.length === a.in.length) return v.jz.map((c, i) => ({ c, raw: a.in[i].map((x) => Math.round(x / 100)) }));
-    if (needSym) throw new Error('o cabo não traz cifras: ligue um objeto "cifra" ou "progressão", ou desconecte e escreva as cifras');
-    return a.in.map((ch) => ({ c: null, raw: ch.map((x) => Math.round(x / 100)) }));
-  }
+/** entrada comum: o cabo traz cifras (de «cifra», «progressão» ou outro objeto Jazz) ou acordes quaisquer; sem cabo, vale o campo de texto.
+ *  Acordes sem cifra entram pelos seus intervalos (JZ.fromNotes): nada é analisado nem acrescentado. */
+function jzChords(list, v) {
+  if (v?.jz && v.jz.length === list.length) return v.jz.map((c) => ({ c }));
+  return list.map((ch, i) => ({ c: JZ.fromNotes(ch.map((x) => x / 100), `ac.${i + 1}`) }));
+}
+function jzIn(a) {
+  if (a.in.length) return jzChords(a.in, a.in$v);
   let prev = null; const toks = String(a.cifra || '').trim().split(/[\s|]+/).filter(Boolean);
-  if (!toks.length) throw new Error('escreva as cifras (ex.: Dm7 G7 Cmaj7) ou conecte uma progressão');
+  if (!toks.length) throw new Error('escreva as cifras (ex.: Dm7 G7 Cmaj7) ou ligue acordes ou uma progressão');
   return toks.map((t) => { if (t === '%' && prev) return { c: prev }; prev = JZ.parse(t); return { c: prev }; });
 }
 function jzOut(list, extraInfo = '') {
+  list.forEach((x) => { x.v = [...new Set(x.v)].sort((p, q) => p - q); });
   const out = VC(list.map((x) => x.v.map((m) => m * 100)));
   out.jz = list.map((x) => x.c || null);
   if (!out.jz.every(Boolean)) delete out.jz;
   const labels = list.map((x) => x.label ?? x.c?.sym ?? '');
   return { out, ext: kbSVG(list.map((x) => x.v), labels, 16, list.some((x) => x.sub) ? list.map((x) => x.sub || '') : null), info: (extraInfo ? extraInfo + '\n' : '') + list.slice(0, 24).map((x, i) => `${labels[i] ? labels[i] + ': ' : ''}${x.v.map((m) => JZ.nm(m, x.sp ?? x.c)).join(' ')}${x.sub ? '  · ' + x.sub : ''}${x.note ? '  · ' + x.note : ''}`).join('\n') + (list.length > 24 ? `\n… (${list.length} acordes)` : '') };
 }
-const JZIN = [I('in', 'cifras (cabo)', 'in'), I('cifra', 'cifras', 'text', 'Dm7 G7 Cmaj7 A7b9')];
+const JZIN = [I('in', 'cifras ou acordes (cabo)', 'in'), I('cifra', 'cifras', 'text', 'Dm7 G7 Cmaj7 A7b9')];
 const JZP = (sub) => ({ group: 'Jazz', sub, extview: true, wide: true });
 const JZ_PRESETS = {
   'ii-V-I': 'IIm7 V7 Imaj7 Imaj7', 'ii-V-i': 'IIm7b5 V7b9 Im6 Im6', turn: 'Imaj7 VIm7 IIm7 V7', turn2: 'Imaj7 VI7b9 IIm7 V7', dameron: 'Imaj7 bIII7 bVImaj7 bII7',
@@ -11082,12 +11135,11 @@ Object.assign(DEFS, {
       r.out.onsets = L.map((_, i) => i * d); r.out.durs = L.map(() => d * 0.96); r.out.tempo = a.tempo; r.out.bars = barsFor([[4, 4]], L.length * d, 4 * beat);
       return r;
     } },
-  'jz-drop': { ...JZP('Voicings'), title: 'drop (2, 3, 2 e 4…)', desc: 'Parte da posição fechada a quatro vozes (four-way close) e desce uma oitava a 2ª, a 3ª ou a 2ª e a 4ª voz, contadas da mais aguda. "Condução" escolhe a inversão mais próxima do acorde anterior. Um cabo sem cifras é tratado como acorde fechado e recebe o drop direto.',
+  'jz-drop': { ...JZP('Voicings'), title: 'drop (2, 3, 2 e 4…)', desc: 'Parte da posição fechada a quatro vozes (four-way close) e desce uma oitava a 2ª, a 3ª ou a 2ª e a 4ª voz, contadas da mais aguda. "Condução" escolhe a inversão mais próxima do acorde anterior. Acordes que chegam sem cifra são postos em posição fechada com as suas próprias notas e recebem as inversões e o drop; as tensões não se aplicam.',
     ins: [...JZIN, I('tipo', 'tipo', 'sel', 'drop2', { opts: [['close', 'fechado (four-way close)'], ['drop2', 'drop 2'], ['drop3', 'drop 3'], ['drop24', 'drop 2 e 4'], ['drop23', 'drop 2 e 3'], ['drop1', 'drop 1 (a voz aguda desce)']] }), I('inv', 'inversão', 'sel', 'auto', { opts: [['auto', 'condução (mais próxima)'], ['0', 'fundamental embaixo'], ['1', '1ª inversão'], ['2', '2ª inversão'], ['3', '3ª inversão'], ['all', 'todas as inversões']] }), I('tens', 'tensões', 'sel', 'none', { opts: [['none', 'só 1 3 5 7'], ['9', '9 no lugar da fundamental'], ['913', '9 e, nos dominantes, 13 no lugar da 5ª']] }), I('topo', 'voz aguda perto de', 'pitch', 'C5')], outs: [OUT],
     run: (a) => {
       const ks = JZ.DROPS[a.tipo], tg = a.topo / 100, L = []; let prev = null;
-      jzIn(a, false).forEach(({ c, raw }) => {
-        if (!c) { const v = JZ.drop(raw, ks); L.push({ c: null, v, label: '' }); prev = v; return; }
+      jzIn(a).forEach(({ c }) => {
         const pcs = JZ.close(c, a.tens), n = pcs.length, mk = (k) => JZ.drop(JZ.invert(pcs, k).map((x) => x + c.root), ks);
         if (a.inv === 'all') { for (let k = 0; k < n; k++) { const v = JZ.lead([mk(k)], null, tg); L.push({ c, v, label: `${c.sym} ${k ? k + 'ª' : 'f.'}` }); } return; }
         const v = a.inv === 'auto' ? JZ.lead(Array.from({ length: n }, (_, k) => mk(k)), prev, tg) : JZ.lead([mk(Math.min(n - 1, +a.inv))], null, tg);
@@ -11095,33 +11147,33 @@ Object.assign(DEFS, {
       });
       return jzOut(L);
     } },
-  'jz-quartal': { ...JZP('Voicings'), title: 'quartal', desc: 'Acordes por quartas. So What: três quartas justas e uma terça maior (m7 sobre a fundamental, maior sobre a 3ª, dominante sobre a 13ª). Quartas justas: a pilha parte do grau da escala do acorde que melhor o descreve. Diatônicas: quartas dentro da escala (com trítonos). Planing: a mesma pilha em todos os graus, à maneira de McCoy Tyner.',
+  'jz-quartal': { ...JZP('Voicings'), title: 'quartal', desc: 'Acordes por quartas. So What: três quartas justas e uma terça maior (m7 sobre a fundamental, maior sobre a 3ª, dominante sobre a 13ª). Quartas justas: a pilha parte do grau da escala do acorde que melhor o descreve. Diatônicas: quartas dentro da escala (com trítonos). Planing: a mesma pilha em todos os graus, à maneira de McCoy Tyner. Acordes sem cifra: todas as notas do próprio acorde são reordenadas para ficarem o mais perto possível de quartas (não há forma So What nem notas novas; «vozes» acima do número de notas repete notas por cima); o planing dá uma ordem começando em cada nota.',
     ins: [...JZIN, I('modo', 'modo', 'sel', 'sowhat', { opts: [['sowhat', 'So What (Bill Evans)'], ['perf', 'quartas justas'], ['diat', 'quartas diatônicas'], ['plan', 'planing diatônico (todos os graus)']] }), I('n', 'vozes', 'num', 4), I('centro', 'centro perto de', 'pitch', 'C4')], outs: [OUT],
     run: (a) => {
       const n = Math.max(2, Math.min(7, Math.round(a.n))), tg = a.centro / 100, L = [];
       jzIn(a).forEach(({ c }) => {
         if (a.modo === 'plan') { const S = JZ.scale(c).s; let k0 = null; S.forEach((_, i) => { const o = JZ.stackDiat(c, 3, n, i); if (k0 == null) k0 = Math.round((tg - c.root - o.reduce((s, x) => s + x, 0) / n) / 12); L.push({ c, v: o.map((x) => c.root + 12 * k0 + x), label: `${c.sym} ${i + 1}` }); }); return; }
         let o = a.modo === 'sowhat' ? JZ.soWhat(c) : null, note = '';
-        if (a.modo === 'sowhat' && !o) note = 'sem forma So What para este acorde: quartas justas';
+        if (a.modo === 'sowhat' && !o) note = c.iv ? 'sem cifra: as notas do acorde em quartas' : 'sem forma So What para este acorde: quartas justas';
         if (!o) o = a.modo === 'diat' ? JZ.stackDiatAuto(c, 3, n) : JZ.stackPerfect(c, 5, a.modo === 'sowhat' ? 4 : n);
         L.push({ c, v: JZ.place(o, c.root, tg, 'mean'), note: note || JZ.scale(c).name });
       });
       return jzOut(L);
     } },
-  'jz-quintal': { ...JZP('Voicings'), title: 'quintas (Kenny Barron)', desc: 'Voicings por quintas. Kenny Barron: duas pilhas de quintas a meio tom (menor) ou um tom (maior) de distância: 1 5 9 | ♭3 ♭7 11 no m11 e 1 5 9 | 3 7 ♯11 no maior; no dominante a segunda pilha é adaptada (♭7 3 13). Pilha: quintas justas a partir do melhor grau da escala. Diatônicas e planing: quintas dentro da escala do acorde.',
+  'jz-quintal': { ...JZP('Voicings'), title: 'quintas (Kenny Barron)', desc: 'Voicings por quintas. Kenny Barron: duas pilhas de quintas a meio tom (menor) ou um tom (maior) de distância: 1 5 9 | ♭3 ♭7 11 no m11 e 1 5 9 | 3 7 ♯11 no maior; no dominante a segunda pilha é adaptada (♭7 3 13). Pilha: quintas justas a partir do melhor grau da escala. Diatônicas e planing: quintas dentro da escala do acorde. Acordes sem cifra: as notas do próprio acorde reordenadas o mais perto possível de quintas, sem notas novas.',
     ins: [...JZIN, I('modo', 'modo', 'sel', 'barron', { opts: [['barron', 'Kenny Barron (1 5 9 | 3 7 11)'], ['perf', 'pilha de quintas justas'], ['diat', 'quintas diatônicas'], ['plan', 'planing diatônico (todos os graus)']] }), I('n', 'vozes (pilhas)', 'num', 5), I('baixo', 'baixo perto de', 'pitch', 'E2')], outs: [OUT],
     run: (a) => {
       const n = Math.max(2, Math.min(7, Math.round(a.n))), tg = a.baixo / 100, L = [];
       jzIn(a).forEach(({ c }) => {
         if (a.modo === 'plan') { const S = JZ.scale(c).s; let k0 = null; S.forEach((_, i) => { const o = JZ.stackDiat(c, 4, n, i); if (k0 == null) k0 = Math.round((tg - c.root - o[0]) / 12); L.push({ c, v: o.map((x) => c.root + 12 * k0 + x), label: `${c.sym} ${i + 1}` }); }); return; }
         let o = null, note = '';
-        if (a.modo === 'barron') { const b = JZ.barron(c); if (b) { o = b.o; note = b.d; } else note = 'sem forma Barron para este acorde: pilha de quintas'; }
+        if (a.modo === 'barron') { const b = JZ.barron(c); if (b) { o = b.o; note = b.d; } else note = c.iv ? 'sem cifra: as notas do acorde em quintas' : 'sem forma Barron para este acorde: pilha de quintas'; }
         if (!o) o = a.modo === 'diat' ? JZ.stackDiatAuto(c, 4, n) : JZ.stackPerfect(c, 7, n);
         L.push({ c, v: JZ.place(o, c.root, tg, 'bottom'), note: note || JZ.scale(c).name });
       });
       return jzOut(L);
     } },
-  'jz-voicing': { ...JZP('Voicings'), title: 'voicing (estilos)', desc: 'Convenções de piano e guitarra: shells de Bud Powell (1-3-7 e 1-7-3), rootless de Bill Evans (A: 3 5 7 9, B: 7 9 3 5; nos dominantes, 13 no lugar da 5ª), abertos e estruturas superiores (trítono 3-7 na mão esquerda e tríade maior na direita). "Rootless com condução" alterna A e B pelo caminho mais curto.',
+  'jz-voicing': { ...JZP('Voicings'), title: 'voicing (estilos)', desc: 'Convenções de piano e guitarra: shells de Bud Powell (1-3-7 e 1-7-3), rootless de Bill Evans (A: 3 5 7 9, B: 7 9 3 5; nos dominantes, 13 no lugar da 5ª), abertos e estruturas superiores (trítono 3-7 na mão esquerda e tríade maior na direita). "Rootless com condução" alterna A e B pelo caminho mais curto. Acordes sem cifra não são analisados: 1, 3, 5, 7, 9 valem como a 1ª, 2ª, 3ª, 4ª, 5ª nota do acorde do grave ao agudo, como o acorde chegou (depois da última, recomeça acima); a estrutura superior põe a 2ª e a 4ª embaixo e o resto por cima.',
     ins: [...JZIN, I('estilo', 'estilo', 'sel', 'rootAuto', { opts: [['shellA', 'shell 1-3-7'], ['shellB', 'shell 1-7-3'], ['shellAuto', 'shells com condução'], ['rootA', 'rootless A (3 5 7 9)'], ['rootB', 'rootless B (7 9 3 5)'], ['rootAuto', 'rootless com condução'], ['spread', 'aberto 1-7-3-5'], ['spread2', 'aberto 1-5-3-7'], ['us', 'estrutura superior']] }), I('us', 'tríade superior', 'sel', 'auto', { opts: [['auto', 'automática (pelas alterações)'], ['II', 'II (9 ♯11 13)'], ['bIII', '♭III (♯9 5 ♭7)'], ['bV', '♭V (♯11 ♭7 ♭9)'], ['bVI', '♭VI (♭13 1 ♯9)'], ['VI', 'VI (13 ♭9 3)']] }), I('centro', 'centro perto de', 'pitch', 'C4')], outs: [OUT],
     run: (a) => {
       const tg = a.centro / 100, L = []; let prev = null;
@@ -11130,16 +11182,16 @@ Object.assign(DEFS, {
         let v, note = '';
         if (a.estilo === 'rootAuto') v = JZ.lead([abs('rootA'), abs('rootB')], prev, tg, 'mean');
         else if (a.estilo === 'shellAuto') v = JZ.lead([abs('shellA'), abs('shellB')], prev, tg - 8, 'mean');
-        else { v = JZ.lead([abs(a.estilo)], null, a.estilo.startsWith('root') ? tg : tg - (a.estilo === 'us' ? 0 : 8), 'mean'); if (a.estilo === 'us') note = `tríade de ${JZ.upper(c, a.us).w}`; }
-        if (a.estilo === 'rootAuto') note = JZ.mod(v[0] - c.root) === JZ.mod(JZ.g3(c)) ? 'A' : 'B';
+        else { v = JZ.lead([abs(a.estilo)], null, a.estilo.startsWith('root') ? tg : tg - (a.estilo === 'us' ? 0 : 8), 'mean'); if (a.estilo === 'us') note = c.iv ? 'por cima: as notas restantes' : `tríade de ${JZ.upper(c, a.us).w}`; }
+        if (a.estilo === 'rootAuto') note = c.iv && c.iv.length < 2 ? '' : JZ.mod(v[0] - c.root) === JZ.mod(JZ.g3(c)) ? 'A' : 'B';
         L.push({ c, v, note }); prev = v;
       });
       return jzOut(L);
     } },
-  'jz-block': { ...JZP('Melodia'), title: 'harmonizar (block chords)', desc: 'Harmoniza cada nota da melodia por baixo, em bloco. Notas do acorde recebem a inversão correspondente; as outras recebem o diminuto de passagem (escala de sexta-diminuta de Barry Harris) ou entram como tensão no lugar da nota do acorde logo abaixo. Locked hands (George Shearing) dobra a melodia uma oitava abaixo.',
-    ins: [I('in', 'melodia', 'in'), I('cifra', 'cifras', 'text', 'C6'), I('npc', 'notas por acorde (opc.)', 'nums', ''), I('tec', 'técnica', 'sel', 'locked', { opts: [['close', 'fechado (four-way close)'], ['drop2', 'drop 2'], ['drop3', 'drop 3'], ['locked', 'locked hands (Shearing)']] }), I('fora', 'notas fora do acorde', 'sel', 'dim', { opts: [['dim', 'diminuto de passagem (Barry Harris)'], ['tens', 'tensão sobre o mesmo acorde']] })], outs: [OUT],
+  'jz-block': { ...JZP('Melodia'), title: 'harmonizar (block chords)', desc: 'Harmoniza cada nota da melodia por baixo, em bloco. Notas do acorde recebem a inversão correspondente; as outras recebem o diminuto de passagem (escala de sexta-diminuta de Barry Harris) ou entram como tensão no lugar da nota do acorde logo abaixo. Locked hands (George Shearing) dobra a melodia uma oitava abaixo. A harmonia vem das cifras escritas ou de um cabo com cifras ou acordes; num acorde sem cifra, as «notas do acorde» são as que ele tem.',
+    ins: [I('in', 'melodia', 'in'), I('h', 'harmonia (cabo)', 'in'), I('cifra', 'cifras', 'text', 'C6'), I('npc', 'notas por acorde (opc.)', 'nums', ''), I('tec', 'técnica', 'sel', 'locked', { opts: [['close', 'fechado (four-way close)'], ['drop2', 'drop 2'], ['drop3', 'drop 3'], ['locked', 'locked hands (Shearing)']] }), I('fora', 'notas fora do acorde', 'sel', 'dim', { opts: [['dim', 'diminuto de passagem (Barry Harris)'], ['tens', 'tensão sobre o mesmo acorde']] })], outs: [OUT],
     run: (a) => {
-      const mel = need(a.in).map((c) => Math.round(Math.max(...c) / 100)), chs = jzIn({ in: [], cifra: a.cifra }).map((x) => x.c);
+      const mel = need(a.in).map((c) => Math.round(Math.max(...c) / 100)), chs = (a.h.length ? jzChords(a.h, a.h$v) : jzIn({ in: [], cifra: a.cifra })).map((x) => x.c);
       const per = a.npc.length ? a.npc.map((x) => Math.max(1, Math.round(x))) : null, idx = [];
       if (per) { const cum = []; let t = 0; chs.forEach((_, j) => cum.push((t += per[j % per.length]))); mel.forEach((_, i) => { const j = cum.findIndex((x) => i < x); idx.push(j < 0 ? chs.length - 1 : j); }); }
       else mel.forEach((_, i) => idx.push(Math.min(chs.length - 1, Math.floor((i * chs.length) / mel.length))));
@@ -11166,7 +11218,9 @@ Object.assign(DEFS, {
     const S = JZ.scale(c).s;
     // com perfil, só valem as pilhas inteiras dentro da escala do acorde (se houver alguma)
     const rank = (all) => { const best = Math.max(...all.map((x) => x.s)), inS = all.filter((x) => x.o.every((v) => S.includes(JZ.mod(v)))), pool = !free ? [all.find((x) => x.s === best)] : inS.length ? inS : all.filter((x) => x.s === best); return pool.map((x) => ({ o: x.o, pen: (best - x.s) * 0.9 + (x.extra || 0) })); };
-    const stack = (iv, step) => rank(S.map((s0, i) => { const of = iv ? Array.from({ length: n }, (_, k) => s0 + k * iv) : JZ.stackDiat(c, step, n, i); return { o: of, s: score(c, of) + (i === 0 ? 0.5 : 0) }; }));
+    // acorde sem cifra: as pilhas «justas» são as ordens das suas próprias notas mais próximas do intervalo
+    const own = (iv) => { const all = JZ.ownStacks(c, iv, n).slice(0, free ? 8 : 1); return all.map((x) => ({ o: x.o, pen: (x.cost - all[0].cost) * 0.5 })); };
+    const stack = (iv, step) => (c.iv && iv ? own(iv) : rank(S.map((s0, i) => { const of = iv ? Array.from({ length: n }, (_, k) => s0 + k * iv) : JZ.stackDiat(c, step, n, i); return { o: of, s: score(c, of) + (i === 0 ? 0.5 : 0) }; })));
     const shape = (base, sh) => (free ? rank(S.map((s0) => { const of = sh.map((x) => x - sh[0] + s0); return { o: of, s: score(c, of), extra: JZ.mod(s0) === JZ.mod(base) ? 0 : 0.6 }; })) : [{ o: sh, pen: 0 }]);
     switch (type) {
       case 'sowhat': { const s = JZ.soWhat(c); return s ? shape(s[0], s) : stack(5); }
@@ -11940,15 +11994,15 @@ const LIVE = {
   api(op, data) { const env = LIVE.env(); if (!LIVE.on()) return Promise.reject(new Error('sem servidor')); return fetch(env.api + op, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify(data || {}) }).then((r) => r.json().then((j) => { if (!r.ok || j.error) throw new Error(j.error || `erro ${r.status}`); return j; })); },
   library() { const env = LIVE.env(), del = new Set(LIVE.deletes), base = LIVE.lib || env?.library || []; return [...LIVE.saves.map((x) => ({ ...x, date: 'agora' })), ...base.filter((x) => !LIVE.saves.some((y) => y.name === x.name))].filter((x) => !del.has(x.name)); },
   /** a sessão em andamento vai para o disco pouco depois de cada mudança */
-  autosave() { if (!LIVE.on()) return; clearTimeout(LIVE.autoT); LIVE.autoT = setTimeout(() => { const p = serialize(), b = JSON.stringify(p); if (b === LIVE.lastAuto) return; LIVE.lastAuto = b; LIVE.api('session', { patch: p }).catch(() => { LIVE.lastAuto = ''; }); }, 900); },
+  autosave() { if (!LIVE.on()) return; clearTimeout(LIVE.autoT); LIVE.autoT = setTimeout(() => { const p = rootPatch(), b = JSON.stringify(p); if (b === LIVE.lastAuto) return; LIVE.lastAuto = b; LIVE.api('session', { patch: p }).catch(() => { LIVE.lastAuto = ''; }); }, 900); },
   /** fecha a janela devolvendo o que fazer (aplicar, cancelar, reabrir em outro tamanho) e tudo o que deve ser guardado */
   close(action, extra = {}) {
-    const patch = serialize(), msg = { app: 'OMDamiao', v: 1, action, autosave: patch.nodes.length ? patch : null, saves: LIVE.saves, deletes: LIVE.deletes, ...extra };
+    const patch = rootPatch(), msg = { app: 'OMDamiao', v: 1, action, autosave: patch.nodes.length ? patch : null, saves: LIVE.saves, deletes: LIVE.deletes, ...extra };
     const ok = LIVE.send(JSON.stringify(msg)); if (ok) LIVE.sent = true; return ok;
   },
   /** grava o patch com esse nome: no disco na hora, ou na fila da mensagem de volta */
   store(nm) {
-    const p = serialize(); if (!p.nodes.length) { toast('O patch está vazio: não há o que salvar.'); return; }
+    const p = rootPatch(); if (!p.nodes.length) { toast('O patch está vazio: não há o que salvar.'); return; }
     const later = () => { LIVE.saves = [{ name: nm, patch: p }, ...LIVE.saves.filter((x) => x.name !== nm)]; LIVE.deletes = LIVE.deletes.filter((x) => x !== nm); flash(`patch "${nm}" guardado (será gravado ao voltar ao Live)`); };
     LIVE.name = nm;
     if (LIVE.on()) LIVE.api('save', { name: nm, patch: p }).then((r) => { LIVE.lib = r.library; flash(`patch "${nm}" salvo no disco`); }).catch(later); else later();
@@ -11961,7 +12015,7 @@ const LIVE = {
   open(x) { loadPatch(JSON.parse(JSON.stringify(x.patch))); LIVE.name = x.auto ? '' : x.name; flash(x.auto ? `${x.name} reaberta` : `patch "${x.name}" aberto`); },
   dlgSave() {
     const env = LIVE.env(), inp = h('input', { type: 'text', 'aria-label': 'Nome do patch', value: LIVE.name || '', placeholder: 'nome do patch', style: 'width:100%' }), er = h('p', { class: 'gerr', hidden: true });
-    const go = () => { const nm = inp.value.trim(); if (!nm) { er.hidden = false; er.textContent = 'dê um nome ao patch'; return; } if (!serialize().nodes.length) { er.hidden = false; er.textContent = 'o patch está vazio'; return; } closeDialog(); LIVE.store(nm); };
+    const go = () => { const nm = inp.value.trim(); if (!nm) { er.hidden = false; er.textContent = 'dê um nome ao patch'; return; } if (!rootPatch().nodes.length) { er.hidden = false; er.textContent = 'o patch está vazio'; return; } closeDialog(); LIVE.store(nm); };
     inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
     dialog('Salvar patch na extensão', h('p', { text: LIVE.on() ? 'O patch é gravado no disco agora, como um arquivo .json, e pode ser reaberto de qualquer trilha, clip ou set (Arquivo → Abrir patch salvo). Um patch com o mesmo nome é substituído.' : 'O patch fica na biblioteca da extensão e pode ser reaberto em qualquer sessão (Arquivo → Abrir patch salvo). A gravação acontece quando a janela volta ao Live, por "Enviar" ou por "Voltar ao Live".' }),
       ...(env?.dir ? [h('p', { style: 'font-size:13px;word-break:break-all;opacity:.8', text: `Pasta: ${env.dir}` })] : []), inp, er, h('div', { class: 'acts' }, h('button', { class: 'gb def', text: 'Salvar', onclick: go }), h('button', { class: 'gb', text: 'Cancelar', onclick: closeDialog })));
@@ -12067,7 +12121,7 @@ Object.assign(DEFS, {
 
 // fechar a janela pelo X: a sessão em andamento já está no disco (servidor local); sem ele, tenta devolvê-la pela mensagem
 if (typeof window !== 'undefined' && window.__LIVE) {
-  const bye = () => { const env = LIVE.env(); if (LIVE.on() && navigator.sendBeacon) { try { navigator.sendBeacon(env.api + 'session', JSON.stringify({ patch: serialize() })); } catch { /* segue */ } } if (!LIVE.sent && !LIVE.on()) { try { LIVE.close('cancel'); } catch { /* a janela já se foi */ } } };
+  const bye = () => { const env = LIVE.env(); if (LIVE.on() && navigator.sendBeacon) { try { navigator.sendBeacon(env.api + 'session', JSON.stringify({ patch: rootPatch() })); } catch { /* segue */ } } if (!LIVE.sent && !LIVE.on()) { try { LIVE.close('cancel'); } catch { /* a janela já se foi */ } } };
   window.addEventListener('pagehide', bye); window.addEventListener('beforeunload', bye);
   // Ctrl/Cmd+S salva na extensão; ao abrir, lembra onde está o trabalho anterior
   window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 's') { e.preventDefault(); e.stopPropagation(); if (LIVE.name) LIVE.store(LIVE.name); else LIVE.dlgSave(); } }, true);
@@ -12303,18 +12357,22 @@ const bxArith = (title, sym, f, desc, bdef) => ({ ...BXS('Aritmética'), title, 
 
 Object.assign(DEFS, {
   // ─────────── montar ───────────
-  loop: { ...BXS('Montar'), title: 'loop', noTiming: true, desc: 'Repete o que chega, o número de vezes dado: um ritmo (lista de durações), uma melodia, uma sequência de acordes ou uma voz com ritmo e compassos. A saída é do mesmo tipo da entrada. Opcionalmente transpõe a cada volta.',
-    ins: [I('in', 'entrada', 'any'), I('n', 'vezes', 'num', 4), I('tr', 'transpor por volta (cents)', 'num', 0), I('ms', 'duração sem ritmo (ms)', 'num', 500)], outs: [{ id: 'out', label: 'saída', t: 'chords' }],
-    run: (a) => {
+  loop: { ...BXS('Montar'), title: 'loop', noTiming: true, desc: 'Repete o que chega, o número de vezes dado: um ritmo (lista de durações), uma melodia, uma sequência de acordes ou uma voz com ritmo e compassos. A saída é do mesmo tipo da entrada. Se antes dele há geradores aleatórios (objetos com «semente»), cada volta sorteia de novo: o loop refaz esse caminho com a semente de cada gerador somada ao número da volta — alea-pertb → loop (8) dá oito sorteios diferentes em sequência. A primeira volta é a que o gerador já mostra; a «semente» do loop troca a série inteira; «repetir igual» volta ao comportamento de cópia. Opcionalmente transpõe a cada volta.',
+    ins: [I('in', 'entrada', 'any'), I('n', 'vezes', 'num', 4), I('novo', 'a cada volta', 'sel', 'yes', { opts: [['yes', 'sorteia de novo (geradores aleatórios)'], ['no', 'repete igual']] }), I('seed', 'semente', 'num', 1), I('tr', 'transpor por volta (cents)', 'num', 0), I('ms', 'duração sem ritmo (ms)', 'num', 500)], outs: [{ id: 'out', label: 'saída', t: 'chords' }],
+    run: (a, n) => {
       const v = a.in, k = Math.max(1, Math.min(128, Math.round(a.n))); if (!v) throw new Error('conecte um ritmo, uma melodia ou acordes à entrada');
-      if (v.kind === 'num') { if (!v.values.length) throw new Error('a lista está vazia'); const o = VN(Array.from({ length: k }, () => v.values).flat()); if (v.meter) o.meter = Array.from({ length: k }, () => v.meter).flat(); return { out: o, info: `${k} × ${v.values.length} valores = ${o.values.length}` }; }
-      if (v.kind === 'bpf') { const w = (v.x[v.x.length - 1] - v.x[0]) || 1, x = [], y = []; for (let i = 0; i < k; i++) v.x.forEach((q, j) => { x.push(q + i * w); y.push(v.y[j] + i * a.tr); }); return { out: { ...v, x, y }, info: `${k} × curva de ${v.x.length} pontos` }; }
+      // as voltas: cópias do que chega, ou o caminho anterior refeito com outras sementes
+      const R = a.novo !== 'no' && n ? replay(n, 'in', k, (Math.round(a.seed) - 1) * 1000) : { vals: [], random: 0 };
+      const V = R.random ? R.vals : Array.from({ length: k }, () => v), rnd = R.random ? ` · ${R.random} gerador(es) sorteado(s) de novo a cada volta` : '';
+      if (V.some((x) => !x || x.kind !== v.kind)) throw new Error('uma das voltas não devolveu nada: confira o gerador ligado ao loop');
+      if (v.kind === 'num') { if (!v.values.length) throw new Error('a lista está vazia'); const o = VN(V.flatMap((x) => x.values)); if (v.meter) o.meter = V.flatMap((x) => x.meter || v.meter); return { out: o, info: `${k} voltas = ${o.values.length} valores${rnd}` }; }
+      if (v.kind === 'bpf') { const x = [], y = []; let off = 0; V.forEach((q, i) => { const w = (q.x[q.x.length - 1] - q.x[0]) || 1; q.x.forEach((px, j) => { x.push(px - q.x[0] + v.x[0] + off); y.push(q.y[j] + i * a.tr); }); off += w; }); return { out: { ...v, x, y }, info: `${k} × curva de ${v.x.length} pontos${rnd}` }; }
       if (v.kind !== 'chords' || !v.chords.length) throw new Error('a entrada está vazia');
-      const s = BX.stream({ in: v.chords, in$v: v, in$vels: v.vels }, 'in');
-      const out = BX.concat(Array.from({ length: k }, (_, i) => (a.tr ? { ...s, ch: s.ch.map((c) => c.map((m) => m + i * a.tr)) } : s)), Math.max(20, a.ms));
-      if (v.jz && !a.tr) out.jz = Array.from({ length: k }, () => v.jz).flat();
-      const mel = v.chords.every((c) => c.length === 1);
-      return { out, info: `${k} × ${v.chords.length} ${mel ? 'notas' : 'acordes'} = ${out.chords.length}${out.bars ? ` · ${out.bars.length - 1} compassos` : ''}${a.tr ? ` · ${a.tr > 0 ? '+' : ''}${a.tr} cents por volta` : ''}` };
+      const S = V.map((q, i) => { const s = BX.stream({ in: q.chords, in$v: q, in$vels: q.vels }, 'in'); return a.tr ? { ...s, ch: s.ch.map((c) => c.map((m) => m + i * a.tr)) } : s; });
+      const out = BX.concat(S, Math.max(20, a.ms));
+      if (!a.tr && V.every((q) => q.jz)) out.jz = V.flatMap((q) => q.jz);
+      const mel = out.chords.every((c) => c.length === 1);
+      return { out, info: `${k} voltas = ${out.chords.length} ${mel ? 'notas' : 'acordes'}${out.bars ? ` · ${out.bars.length - 1} compassos` : ''}${a.tr ? ` · ${a.tr > 0 ? '+' : ''}${a.tr} cents por volta` : ''}${rnd}` };
     } },
   'b-concat': { ...BXS('Montar'), title: 'concatenar', noTiming: true, desc: 'Põe até quatro fluxos em sequência (A, depois B, C, D), com as alturas, o ritmo e as dinâmicas de cada um. Com compassos, cada fluxo começa na barra seguinte ao anterior; sem ritmo, vale a duração dada.',
     ins: [I('in', 'A', 'in'), I('b', 'B', 'in'), I('c', 'C (opc.)', 'in'), I('d', 'D (opc.)', 'in'), I('ms', 'duração sem ritmo (ms)', 'num', 500)], outs: [OUT],
@@ -12396,6 +12454,327 @@ Object.values(DEFS).forEach((def) => {
     return { ...r, out: VC(ch, v.vels ? vl : null) };
   };
 });
+
+// ════════════════════════════════════════════════════════════════
+//  Subpatches, abas e abstrações (como no Pure Data / plugdata)
+//  · subpatch: um objeto que guarda um patch dentro de si; as entradas e saídas dele são os objetos
+//    «inlet» e «outlet» lá de dentro, da esquerda para a direita. «Abrir ▸» edita o conteúdo numa aba.
+//  · abas: vários patches abertos lado a lado; a aba de um subpatch grava de volta no objeto do pai.
+//  · abstrações: subpatches guardados com nome neste navegador, para inserir de novo pelo menu.
+// ════════════════════════════════════════════════════════════════
+const SUBCTX = [];
+const SUB_T = [['chords', 'acordes'], ['nums', 'números'], ['any', 'qualquer']];
+const WSKEY = 'omdamiao-abas', ABSKEY = 'omdamiao-abstracoes';
+const WS = { tabs: [], cur: 0, n: 1 };
+const jclone = (x) => JSON.parse(JSON.stringify(x ?? null));
+const emptyPatch = () => ({ v: 1, nodes: [], cables: [] });
+const subStarter = () => ({ v: 1, nodes: [
+  { id: 'n1', type: 'sub-in', x: 40, y: 40, params: { nome: 'entrada', tipo: 'chords', padrao: '' } },
+  { id: 'n2', type: 'sub-out', x: 40, y: 430, params: { nome: 'saída', tipo: 'chords' } }],
+cables: [{ from: { n: 'n1', p: 'out' }, to: { n: 'n2', p: 'in' } }] });
+
+/** inlets e outlets de um patch guardado, da esquerda para a direita */
+function subPorts(patch) {
+  const ns = patch?.nodes || [], pick = (t) => ns.filter((m) => m.type === t).sort((a, b) => a.x - b.x || a.y - b.y);
+  return { ins: pick('sub-in'), outs: pick('sub-out') };
+}
+/** a definição de cada subpatch é própria: as portas vêm do que há dentro dele */
+function subDef(params) {
+  if (!params.patch || !Array.isArray(params.patch.nodes)) params.patch = subStarter();
+  const { ins, outs } = subPorts(params.patch), nm = (m, i, w) => String(m.params?.nome ?? '').trim() || `${w} ${i + 1}`;
+  return { ...DEFS.sub, title: String(params.nome || '').trim() || 'subpatch',
+    ins: ins.map((m, i) => { const k = m.params?.tipo || 'chords', pd = String(m.params?.padrao ?? '').trim();
+      return I(`i_${m.id}`, nm(m, i, 'entrada'), k === 'nums' ? 'nums' : k === 'any' ? 'any' : 'chords', '', { inner: m.id, kind: k, ph: pd ? `padrão: ${pd}` : k === 'any' ? null : 'vazio = valor de dentro' }); }),
+    outs: outs.map((m, i) => { const k = m.params?.tipo || 'chords'; return { id: `o_${m.id}`, label: nm(m, i, 'saída'), t: k === 'chords' ? 'chords' : k === 'nums' ? 'num' : 'any', inner: m.id }; }) };
+}
+/** o que uma entrada do subpatch entrega ao inlet de dentro (undefined = nada: o inlet usa o seu padrão) */
+function subArg(n, p) {
+  const inc = incoming(n, p.id); if (inc) return inc.v ?? null;
+  const raw = String(n.params[p.id] ?? '').trim(); if (!raw) return undefined;
+  return p.kind === 'nums' ? VN(parseNums(raw)) : p.kind === 'chords' ? VC(parseChordsTxt(raw)) : undefined;
+}
+function subInVals(n) { const o = {}; n.def.ins.forEach((p) => { try { const v = subArg(n, p); if (v !== undefined) o[p.inner] = v; } catch { /* entrada inválida: o inlet usa o padrão */ } }); return o; }
+/** monta os objetos de dentro (com janela própria, mas fora da mesa) */
+function subBuild(P) {
+  const nodes = new Map(), bad = [];
+  (P.nodes || []).forEach((s) => {
+    const params = jclone(s.params || {}), D = DEFS[s.type];
+    if (!D) { bad.push(s.type); return; }
+    const def = D.dyn ? D.dyn(params) : D;
+    const m = { id: s.id, type: s.type, def, x: s.x, y: s.y, params, vals: {}, ui: {}, shaded: false, inner: true };
+    def.ins.forEach((p) => (m.params[p.id] = params[p.id] ?? p.def ?? ''));
+    buildNode(m, false); nodes.set(m.id, m);
+  });
+  const ok = (id, p, k) => { const m = nodes.get(id); return m && (!m.def.dyn || m.def[k].some((o) => o.id === p)); };
+  return { nodes, cables: (P.cables || []).filter((c) => ok(c.from.n, c.from.p, 'outs') && ok(c.to.n, c.to.p, 'ins')), bad };
+}
+function subRun(a, n) {
+  const P = n.params.patch || emptyPatch();
+  if (SUBCTX.length >= 16) throw new Error('subpatches dentro de subpatches demais (mais de 16 níveis)');
+  const key = JSON.stringify(P);
+  if (n.ui.innerKey !== key) { n.ui.inner = subBuild(P); n.ui.innerKey = key; }
+  const { nodes, cables, bad } = n.ui.inner, ctx = subInVals(n), out = {}, errs = [], sv = [graph.nodes, graph.cables];
+  SUBCTX.push(ctx); graph.nodes = nodes; graph.cables = cables;
+  try {
+    const order = topo();
+    nodes.forEach((m) => { if (!order.includes(m.id)) { m.vals = {}; m.err = 'realimentação por tabela'; errs.push(m); } });
+    for (const id of order) { const m = nodes.get(id); runNode(m); if (m.err) errs.push(m); }
+    n.def.outs.forEach((o) => { const m = nodes.get(o.inner); out[o.id] = m ? (incoming(m, 'in')?.v ?? null) : null; });
+  } finally { graph.nodes = sv[0]; graph.cables = sv[1]; SUBCTX.pop(); }
+  const kinds = {}; nodes.forEach((m) => { if (m.type !== 'sub-in' && m.type !== 'sub-out') kinds[m.def.title] = (kinds[m.def.title] || 0) + 1; });
+  const list = Object.entries(kinds).map(([t, k]) => (k > 1 ? `${t} ×${k}` : t)).join(' · ');
+  let info = `${nodes.size} objeto(s) dentro${n.params.abs ? ` · abstração «${n.params.abs}»` : ''}`;
+  if (bad.length) info += ` · ⚠ objetos desconhecidos: ${[...new Set(bad)].join(', ')}`;
+  if (errs.length) {
+    const msg = `dentro, ${errs[0].def.title}: ${errs[0].err}`;
+    if (n.def.outs.length && n.def.outs.every((o) => out[o.id] == null)) throw new Error(msg);
+    info += ` · ⚠ ${msg}`;
+  }
+  if (!n.def.ins.length && !n.def.outs.length) info += ' · sem inlet nem outlet: abra e ponha «entrada (inlet)» e «saída (outlet)»';
+  return { ...out, info, ext: `<p class="gdesc" style="margin:0">dentro: ${esc(list || 'nada além de inlets e outlets')}</p>` };
+}
+
+Object.assign(DEFS, {
+  sub: { group: 'Básico', sub: 'Subpatch', title: 'subpatch', noTiming: true, extview: true, dyn: subDef,
+    desc: 'Um patch dentro de um objeto. «Abrir ▸» edita numa aba; as entradas e saídas são os «inlet» e «outlet» de dentro, da esquerda para a direita.',
+    ins: [], outs: [],
+    extActs: (n) => [h('button', { class: 'gb def', text: 'Abrir ▸', title: 'Abre o subpatch numa aba para editar', onclick: () => openSub(n) }),
+      h('button', { class: 'gb', text: 'Salvar abstração…', title: 'Guarda este subpatch com nome, para inserir de novo pelo menu Abstrações', onclick: () => dlgSaveAbs(n) })],
+    run: subRun },
+  'sub-in': { group: 'Básico', sub: 'Subpatch', title: 'entrada (inlet)', noTiming: true,
+    desc: 'Entrada do subpatch: vira uma porta do objeto lá fora. O «valor padrão» vale quando nada chega de fora.',
+    ins: [I('nome', 'nome', 'text', 'entrada'), I('tipo', 'tipo', 'sel', 'chords', { opts: SUB_T }), I('padrao', 'valor padrão', 'text', '')],
+    outs: [{ id: 'out', label: 'valor', t: 'chords' }],
+    run: (a, n) => {
+      const ctx = SUBCTX.length ? SUBCTX[SUBCTX.length - 1] : curTab()?.parent ? curTab().inVals || null : null;
+      let v = ctx ? ctx[n.id] : undefined; const fora = v != null;
+      if (!fora) { const raw = String(a.padrao || '').trim(); v = a.tipo === 'nums' ? VN(parseNums(raw)) : a.tipo === 'chords' ? VC(parseChordsTxt(raw)) : null; }
+      const why = fora ? (SUBCTX.length ? 'recebe de fora' : 'recebe de fora (o que chegava quando a aba foi aberta)')
+        : !SUBCTX.length && !curTab()?.parent ? 'fora de um subpatch: usa o valor padrão' : curTab()?.parent && !curTab().inVals ? 'abra pelo objeto no patch pai para ver o que chega de fora' : 'nada chega de fora: usa o valor padrão';
+      return { out: v, info: why };
+    } },
+  'sub-out': { group: 'Básico', sub: 'Subpatch', title: 'saída (outlet)', noTiming: true,
+    desc: 'Saída do subpatch: o que chega aqui sai pela porta correspondente do objeto lá fora.',
+    ins: [I('in', 'valor', 'any'), I('nome', 'nome', 'text', 'saída'), I('tipo', 'tipo', 'sel', 'chords', { opts: SUB_T })],
+    outs: [], run: (a) => ({ info: a.in ? `sai: ${summary(a.in)}` : 'nada chegando' }) },
+});
+BASIC_MENU.push(['Subpatch', ['sub', 'sub-in', 'sub-out']]);
+
+// ─────────── abas ───────────
+const curTab = () => WS.tabs[WS.cur] || null;
+const tabById = (id) => WS.tabs.find((t) => t.id === id) || null;
+const isDesc = (t, anc) => { for (let p = t.parent && tabById(t.parent.tab); p; p = p.parent && tabById(p.parent.tab)) if (p === anc) return true; return false; };
+/** a aba atual guarda o que está na mesa; a de um subpatch grava também dentro do objeto do pai (e assim por diante) */
+function syncTab() { const t = curTab(); if (!t) return; t.data = jclone(serialize()); if (t.parent) subWriteBack(t); }
+function subWriteBack(t) {
+  const p = tabById(t.parent.tab), spec = p?.data?.nodes?.find((s) => s.id === t.parent.node && s.type === 'sub');
+  if (!spec) { t.parent = null; t.inVals = null; renderTabs(); return; }   // o objeto sumiu do pai: a aba vira um patch solto
+  spec.params = { ...spec.params, patch: jclone(t.data), nome: t.name };
+  if (p.parent) subWriteBack(p);
+}
+let wsWarned = false;
+function wsStore() {
+  try { localStorage.setItem(WSKEY, JSON.stringify({ tabs: WS.tabs.map(({ id, name, data, parent }) => ({ id, name, data, parent: parent || null })), cur: WS.cur, n: WS.n })); }
+  catch (e) { if (!wsWarned && e && /quota/i.test(e.name + e.message)) { wsWarned = true; toast('A memória do navegador está cheia: as abas não foram guardadas. Feche abas que não usa ou exporte as abstrações.'); } }
+}
+function switchTab(i) {
+  if (i === WS.cur || !WS.tabs[i]) return;
+  const t0 = curTab(); if (t0) { syncTab(); t0.scroll = [desktop.scrollLeft, desktop.scrollTop]; }
+  WS.cur = i; const t = curTab();
+  loadPatch(jclone(t.data)); renderTabs();
+  requestAnimationFrame(() => { if (t.scroll) { desktop.scrollLeft = t.scroll[0]; desktop.scrollTop = t.scroll[1]; } });
+}
+function nextPatchName() { const used = new Set(WS.tabs.map((t) => t.name)); let k = 1; while (used.has(`patch ${k}`)) k++; return `patch ${k}`; }
+function newTab(name, data = emptyPatch(), extra = {}) {
+  if (curTab()) syncTab();
+  const t = { id: `t${WS.n++}`, name: name || nextPatchName(), data: jclone(data), ...extra };
+  let at = WS.tabs.length;
+  if (extra.parent) { const p = WS.tabs.indexOf(tabById(extra.parent.tab)); at = p + 1; while (at < WS.tabs.length && isDesc(WS.tabs[at], WS.tabs[p])) at++; }
+  WS.tabs.splice(at, 0, t);
+  if (at <= WS.cur) WS.cur++;
+  switchTab(at);
+  return t;
+}
+/** abre um patch (exemplo, colado) numa aba nova; aproveita a atual se for um patch vazio */
+function openPatchTab(p, name) {
+  const t = curTab();
+  if (t && !t.parent && !graph.nodes.size) { t.name = name || t.name; loadPatch(p); renderTabs(); return; }
+  newTab(name, p);
+}
+function closeTab(i, ask = true) {
+  const t = WS.tabs[i]; if (!t) return;
+  if (i === WS.cur) syncTab();
+  const full = i === WS.cur ? graph.nodes.size : t.data?.nodes?.length;
+  if (ask && !t.parent && full) {
+    dialog('Fechar aba', h('p', { text: `Fechar «${t.name}»? O patch desta aba (e as abas de subpatch abertas a partir dela) deixa de existir. Para guardar, use antes «Salvar como abstração…» ou «Copiar patch (JSON)».` }),
+      h('div', { class: 'acts' }, h('button', { class: 'gb def', text: 'Fechar', onclick: () => { closeDialog(); closeTab(WS.tabs.indexOf(t), false); } }), h('button', { class: 'gb', text: 'Cancelar', onclick: closeDialog })));
+    return;
+  }
+  const gone = new Set([t, ...WS.tabs.filter((x) => isDesc(x, t))]), cur = curTab(), parent = t.parent && tabById(t.parent.tab);
+  WS.tabs = WS.tabs.filter((x) => !gone.has(x));
+  if (!WS.tabs.length) WS.tabs.push({ id: `t${WS.n++}`, name: 'patch 1', data: emptyPatch() });
+  if (gone.has(cur)) { const j = parent && WS.tabs.includes(parent) ? WS.tabs.indexOf(parent) : Math.min(i, WS.tabs.length - 1); WS.cur = -1; switchTab(j); }
+  else { WS.cur = WS.tabs.indexOf(cur); renderTabs(); }
+  persistNow();
+}
+function dlgRenameTab(i = WS.cur) {
+  const t = WS.tabs[i]; if (!t) return;
+  const inp = h('input', { type: 'text', value: t.name, 'aria-label': 'Nome da aba', autocomplete: 'off', spellcheck: 'false' });
+  const go = () => { const nm = inp.value.trim(); if (!nm) return; closeDialog(); t.name = nm; if (i === WS.cur) syncTab(); else if (t.parent) subWriteBack(t); renderTabs(); persistNow(); };
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+  dialog('Renomear aba', h('p', { text: t.parent ? 'O nome também vira o título do objeto subpatch no patch pai.' : 'Nome da aba:' }), inp, h('div', { class: 'acts' }, h('button', { class: 'gb def', text: 'OK', onclick: go })));
+  inp.select();
+}
+function renderTabs() {
+  const bar = $('tabbar'); if (!bar) return;
+  bar.textContent = '';
+  WS.tabs.forEach((t, i) => {
+    const path = []; for (let p = t; p; p = p.parent && tabById(p.parent.tab)) path.unshift(p.name);
+    const x = h('button', { class: 'tx', type: 'button', 'aria-label': `Fechar a aba ${t.name}`, title: 'Fechar', text: '×' });
+    const el = h('div', { class: 'tab' + (i === WS.cur ? ' on' : '') + (t.parent ? ' sub' : ''), role: 'tab', tabindex: '0', 'aria-selected': String(i === WS.cur), title: `${path.join(' › ')}${t.parent ? ' (subpatch)' : ''} · duplo clique: renomear` },
+      h('span', { class: 'tl', text: (t.parent ? '▸ ' : '') + t.name }), x);
+    el.addEventListener('click', (e) => { if (!x.contains(e.target)) switchTab(i); });
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab(i); } });
+    el.addEventListener('dblclick', (e) => { if (!x.contains(e.target)) dlgRenameTab(i); });
+    x.addEventListener('click', (e) => { e.stopPropagation(); closeTab(i); });
+    bar.append(el);
+  });
+  bar.append(h('button', { class: 'tplus', type: 'button', title: 'Nova aba (patch vazio)', 'aria-label': 'Nova aba', text: '+', onclick: () => newTab() }));
+  bar.querySelector('.tab.on')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+}
+function openSub(n) {
+  const cur = curTab(); if (!cur || !graph.nodes.has(n.id)) { toast('Abra o subpatch a partir da mesa.'); return; }
+  syncTab();
+  const inVals = subInVals(n), nm = String(n.params.nome || '').trim() || 'subpatch';
+  const i = WS.tabs.findIndex((t) => t.parent && t.parent.tab === cur.id && t.parent.node === n.id);
+  if (i >= 0) { Object.assign(WS.tabs[i], { data: jclone(n.params.patch), inVals, name: nm }); switchTab(i); }
+  else newTab(nm, n.params.patch, { parent: { tab: cur.id, node: n.id }, inVals });
+}
+/** o patch-raiz da aba atual (para o Live: o patch inteiro, mesmo editando um subpatch) */
+function rootPatch() {
+  if (!WS.tabs.length) return serialize();
+  syncTab(); let t = curTab(); while (t?.parent) t = tabById(t.parent.tab);
+  return t ? jclone(t.data) : serialize();
+}
+function wsInit(fallback) {
+  let w = null; if (!window.__LIVE) { try { w = JSON.parse(store.get(WSKEY) || 'null'); } catch {} }
+  if (w && Array.isArray(w.tabs) && w.tabs.length && w.tabs.every((t) => t && t.id && Array.isArray(t.data?.nodes))) {
+    WS.tabs = w.tabs.map((t) => ({ id: t.id, name: String(t.name || 'patch'), data: t.data, parent: t.parent || null }));
+    WS.n = Math.max(Number(w.n) || 1, ...WS.tabs.map((t) => +String(t.id).slice(1) + 1 || 1));
+    WS.tabs.forEach((t) => { if (t.parent && !tabById(t.parent.tab)) t.parent = null; });
+    WS.cur = Math.min(Math.max(0, w.cur | 0), WS.tabs.length - 1);
+  } else { WS.tabs = [{ id: `t${WS.n++}`, name: window.__LIVE ? 'Live' : 'patch 1', data: fallback }]; WS.cur = 0; }
+  renderTabs();
+  try { loadPatch(jclone(curTab().data)); }
+  catch (e) { console.error(e); curTab().data = jclone(EXAMPLES[0].patch); loadPatch(jclone(curTab().data)); }
+}
+
+// ─────────── abstrações (guardadas neste navegador) ───────────
+function absList() { try { const a = JSON.parse(store.get(ABSKEY) || '[]'); return Array.isArray(a) ? a.filter((x) => x && x.name && Array.isArray(x.patch?.nodes)) : []; } catch { return []; } }
+function absStore(list) {
+  try { localStorage.setItem(ABSKEY, JSON.stringify(list)); return true; }
+  catch { toast('Não consegui guardar: a memória do navegador está cheia ou bloqueada.'); return false; }
+}
+function absInsert(a) {
+  const n = spawn('sub', { nome: a.name, patch: jclone(a.patch), abs: a.name });
+  if (n) flash(`abstração: ${a.name}`);
+  return n;
+}
+/** guarda um subpatch (objeto) ou a aba atual como abstração */
+function dlgSaveAbs(n = null) {
+  const t = curTab();
+  const src = n ? { patch: n.params.patch, name: n.params.abs || n.params.nome || 'subpatch' } : { patch: serialize(), name: t?.name || 'abstração' };
+  const inp = h('input', { type: 'text', value: String(src.name), 'aria-label': 'Nome da abstração', autocomplete: 'off', spellcheck: 'false' });
+  const er = h('p', { class: 'gerr', hidden: true }), ok = h('button', { class: 'gb def', text: 'Salvar' });
+  let confirmName = null;
+  const go = () => {
+    const nm = inp.value.trim(); if (!nm) { er.hidden = false; er.textContent = 'dê um nome'; return; }
+    const list = absList(), k = list.findIndex((x) => x.name === nm);
+    if (k >= 0 && confirmName !== nm) { confirmName = nm; er.hidden = false; er.textContent = `Já existe «${nm}». Clique de novo para substituir (os objetos já inseridos não mudam).`; ok.textContent = 'Substituir'; return; }
+    const p = jclone(src.patch); delete p.v; p.v = 1;
+    const item = { name: nm, patch: p, ts: Date.now() };
+    if (k >= 0) list[k] = item; else list.push(item);
+    list.sort((a, b) => a.name.localeCompare(b.name, 'pt'));
+    if (!absStore(list)) return;
+    if (n) { n.params.abs = nm; if (!String(n.params.nome || '').trim()) n.params.nome = nm; schedule(true); }
+    closeDialog(); flash(`abstração guardada: ${nm}`);
+  };
+  ok.onclick = go;
+  inp.addEventListener('input', () => { confirmName = null; ok.textContent = 'Salvar'; er.hidden = true; });
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+  const { ins, outs } = subPorts(src.patch);
+  dialog('Salvar como abstração',
+    h('p', { text: `${n ? 'Subpatch' : 'Patch desta aba'}: ${(src.patch.nodes || []).length} objeto(s), ${ins.length} entrada(s), ${outs.length} saída(s). Fica guardada neste navegador e aparece no menu Abstrações; para levar a outro aparelho (o iPad, por exemplo), use Abstrações → Exportar.` }),
+    inp, er, h('div', { class: 'acts' }, ok, h('button', { class: 'gb', text: 'Cancelar', onclick: closeDialog })));
+  inp.select();
+}
+function dlgAbs() {
+  const list = absList(), box = h('div', { class: 'abs-list' });
+  if (!list.length) box.append(h('p', { text: 'Nenhuma abstração guardada ainda. Crie um subpatch (menu Abstrações → Novo subpatch), monte-o com «Abrir ▸» e use «Salvar abstração…».' }));
+  list.forEach((a) => {
+    const { ins, outs } = subPorts(a.patch), del = h('button', { class: 'gb', text: 'Apagar' });
+    let armed = false;
+    del.onclick = () => { if (!armed) { armed = true; del.textContent = 'Confirmar'; return; } absStore(absList().filter((x) => x.name !== a.name)); dlgAbs(); };
+    box.append(h('div', { class: 'abs-row' },
+      h('div', {}, h('b', { text: a.name }), h('span', { class: 'gdesc', text: ` · ${a.patch.nodes.length} obj · ${ins.length} ent · ${outs.length} saí${a.ts ? ` · ${new Date(a.ts).toLocaleDateString('pt-BR')}` : ''}` })),
+      h('div', { class: 'acts' },
+        h('button', { class: 'gb def', text: 'Inserir', onclick: () => { closeDialog(); absInsert(a); } }),
+        h('button', { class: 'gb', text: 'Abrir em aba', title: 'Abre o conteúdo como patch numa aba nova', onclick: () => { closeDialog(); newTab(a.name, a.patch); } }),
+        h('button', { class: 'gb', text: 'Renomear', onclick: () => {
+          const inp = h('input', { type: 'text', value: a.name, 'aria-label': 'Novo nome' }), er = h('p', { class: 'gerr', hidden: true });
+          const go = () => { const nm = inp.value.trim(), l = absList(); if (!nm) return; if (nm !== a.name && l.some((x) => x.name === nm)) { er.hidden = false; er.textContent = 'já existe uma com esse nome'; return; } const it = l.find((x) => x.name === a.name); if (it) it.name = nm; absStore(l); dlgAbs(); };
+          inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+          dialog('Renomear abstração', inp, er, h('div', { class: 'acts' }, h('button', { class: 'gb def', text: 'OK', onclick: go }), h('button', { class: 'gb', text: 'Voltar', onclick: dlgAbs })));
+          inp.select();
+        } }), del)));
+  });
+  dialog('Abstrações', box, h('div', { class: 'acts' },
+    h('button', { class: 'gb', text: '↓ Exportar (.json)', onclick: absExport }), h('button', { class: 'gb', text: '↑ Importar (.json)…', onclick: absImport }),
+    h('button', { class: 'gb def', text: 'OK', onclick: closeDialog })));
+}
+async function absExport() {
+  const list = absList(); if (!list.length) { toast('Não há abstrações para exportar.'); return; }
+  const bytes = new TextEncoder().encode(JSON.stringify({ app: 'OMDamiao', tipo: 'abstracoes', v: 1, abstracoes: list }, null, 1)), name = 'abstracoes-omdamiao.json';
+  let ok = false;
+  try {
+    if (window.claude && typeof window.claude.use === 'function') { const dl = await getDownloads(); if (dl) { await dl.save({ filename: name, data: new Blob([bytes], { type: 'application/json' }) }); ok = true; } }
+    else ok = directDownload(name, bytes, 'application/json');
+  } catch { ok = false; }
+  flash(ok ? `${name}: ${list.length} abstração(ões)` : 'esta janela não deixa salvar arquivos');
+}
+function absImport() {
+  const f = h('input', { type: 'file', accept: '.json,application/json', style: 'display:none' });
+  f.addEventListener('change', async () => {
+    const file = f.files?.[0]; f.remove(); if (!file) return;
+    try {
+      const j = JSON.parse(await file.text()), inc = (Array.isArray(j) ? j : j.abstracoes || []).filter((x) => x && x.name && Array.isArray(x.patch?.nodes));
+      if (!inc.length) throw new Error('o arquivo não traz abstrações');
+      const list = absList(); let rep = 0;
+      inc.forEach((a) => { const k = list.findIndex((x) => x.name === a.name); if (k >= 0) { list[k] = a; rep++; } else list.push(a); });
+      list.sort((a, b) => a.name.localeCompare(b.name, 'pt'));
+      if (absStore(list)) { dlgAbs(); flash(`importadas: ${inc.length}${rep ? ` (${rep} substituída(s))` : ''}`); }
+    } catch (e) { toast(`Não consegui importar: ${e.message}`); }
+  });
+  document.body.append(f); f.click();
+}
+function absMenu() {
+  const list = absList(), sub = focused?.type === 'sub' ? focused : null;
+  return [
+    { label: 'Novo subpatch', act: () => spawn('sub') },
+    { label: 'Entrada (inlet)', act: () => spawn('sub-in') },
+    { label: 'Saída (outlet)', act: () => spawn('sub-out') },
+    ...(sub ? [{ label: `Abrir «${sub.def.title}»`, act: () => openSub(sub) }] : []),
+    { sep: true },
+    { label: sub ? `Salvar «${sub.def.title}» como abstração…` : 'Salvar esta aba como abstração…', act: () => dlgSaveAbs(sub) },
+    { label: 'Gerenciar abstrações…', act: dlgAbs },
+    { sep: true },
+    { grp: list.length ? 'Inserir' : 'Nenhuma guardada' },
+    ...list.map((a) => ({ label: a.name, act: () => absInsert(a) })),
+    { sep: true },
+    { label: 'Exportar abstrações (.json)', act: absExport },
+    { label: 'Importar abstrações (.json)…', act: absImport },
+  ];
+}
 
 // ─────────── mini-Lisp: um avaliador pequeno de expressões Lisp, para regras e funções escritas em texto ───────────
 // Serve às bibliotecas cujos objetos, no OpenMusic, recebem um patch em modo lambda (regras do OMCS, do Cluster Engine,
@@ -15709,7 +16088,7 @@ function toContent(clientX, clientY) { const c = canvas.getBoundingClientRect();
 let focused = null;
 
 function addNode(type, x, y, params = {}, id = null, extra = {}) {
-  const def = DEFS[type];
+  const def = DEFS[type]?.dyn ? DEFS[type].dyn(params || {}) : DEFS[type];
   if (!def) return null;
   const n = { id: id || `n${graph.nextId++}`, type, def, x, y, params: {}, vals: {}, ui: {}, shaded: !!extra.shaded };
   if (id) { const k = Number(String(id).slice(1)); if (k >= graph.nextId) graph.nextId = k + 1; }
@@ -15720,7 +16099,7 @@ function addNode(type, x, y, params = {}, id = null, extra = {}) {
   return n;
 }
 
-function buildNode(n) {
+function buildNode(n, attach = true) {
   const def = n.def;
   const body = h('div', { class: 'gwin-body' });
   const win = h('div', { class: 'gwin' + (def.wide ? ' wide' : '') + (n.shaded ? ' shaded' : ''), id: n.id, style: `left:${n.x}px;top:${n.y}px;z-index:${++graph.z}`, role: 'group', 'aria-label': def.title },
@@ -15742,7 +16121,7 @@ function buildNode(n) {
     if (p.t === 'in' || p.t === 'rc' || p.t === 'any') field = h('span', { class: 'sum', id: fid, text: 'desconectado' });
     else if (p.t === 'sel') { field = h('select', { id: fid }); p.opts.forEach(([v, t]) => field.append(h('option', { value: v, text: t }))); field.value = n.params[p.id]; }
     else if (p.t === 'area') { row.style.gridTemplateColumns = '1fr'; row.querySelector('label').hidden = true; field = h('textarea', { id: fid, class: 'src-area', spellcheck: 'false' }); field.value = n.params[p.id]; if (p.rows) { field.style.minHeight = `${p.rows * 1.45}em`; field.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace'; field.style.fontSize = '13px'; field.style.lineHeight = '1.45'; field.setAttribute('wrap', 'off'); field.addEventListener('keydown', (e) => { if (e.key === 'Tab') { e.preventDefault(); field.setRangeText('  ', field.selectionStart, field.selectionEnd, 'end'); field.dispatchEvent(new Event('input')); } }); } }
-    else { field = h('input', { id: fid, type: 'text', inputmode: p.t === 'num' ? 'decimal' : null, autocomplete: 'off', spellcheck: 'false' }); field.value = n.params[p.id]; }
+    else { field = h('input', { id: fid, type: 'text', inputmode: p.t === 'num' ? 'decimal' : null, autocomplete: 'off', spellcheck: 'false', placeholder: p.ph || null }); field.value = n.params[p.id]; }
     if (field.tagName !== 'SPAN') {
       const upd = () => { n.params[p.id] = field.value; schedule(); };
       field.addEventListener(field.tagName === 'SELECT' ? 'change' : 'input', upd);
@@ -15879,7 +16258,7 @@ function buildNode(n) {
   win.addEventListener('pointerdown', () => focusNode(n), true);
   win.querySelector('[data-act=close]').addEventListener('click', () => removeNode(n));
   win.querySelector('[data-act=shade]').addEventListener('click', () => { n.shaded = !n.shaded; win.classList.toggle('shaded', n.shaded); drawCables(); save(); });
-  content.append(win);
+  if (attach) content.append(win);
 }
 
 function buildSlider(n, body) {
@@ -15942,6 +16321,38 @@ function topo() {
   while (q.length) { const k = q.shift(); order.push(k); E.forEach((c) => { if (c.from.n === k) { indeg.set(c.to.n, indeg.get(c.to.n) - 1); if (indeg.get(c.to.n) === 0) q.push(c.to.n); } }); }
   return order;
 }
+/** Reavalia `times` vezes o que vem antes de uma entrada, trocando as sementes dos geradores aleatórios desse caminho
+ *  (semente do objeto + base + volta), e devolve o valor que chegaria em cada volta. Só os objetos com semente, e os que
+ *  dependem deles, são refeitos; no fim tudo volta ao estado da semente original.
+ *  Devolve { vals: [...], random: quantos geradores com semente há no caminho }. */
+function replay(n, pid, times, base = 0) {
+  const c = graph.cables.find((k) => k.to.n === n.id && k.to.p === pid); if (!c) return { vals: [], random: 0 };
+  const anc = new Set(), walk = (id) => { if (anc.has(id)) return; anc.add(id); graph.cables.forEach((k) => { if (k.to.n === id) walk(k.from.n); }); }; walk(c.from.n);
+  const order = topo().filter((id) => anc.has(id)).map((id) => graph.nodes.get(id)), src = graph.nodes.get(c.from.n);
+  const seeded = (m) => m.def.ins.some((p) => p.id === 'seed') && !incoming(m, 'seed'), rnd = new Set();
+  order.forEach((m) => { if (seeded(m) || graph.cables.some((k) => k.to.n === m.id && rnd.has(k.from.n))) rnd.add(m.id); });
+  const gens = order.filter(seeded).length;
+  if (!gens) return { vals: Array.from({ length: times }, () => src.vals[c.from.p]), random: 0 };
+  const todo = order.filter((m) => rnd.has(m.id)), saved = todo.map((m) => ({ m, vals: m.vals, seed: m.params.seed }));
+  const run = (m) => {
+    const a = readInputs(m), r = m.def.run(a, m) || {}, s0 = a.in$v;
+    if (!m.def.noTiming && r.out?.kind === 'chords' && !r.out.onsets && s0?.onsets && s0.chords.length === r.out.chords.length) { r.out.onsets = s0.onsets; r.out.durs = s0.durs; r.out.bars = s0.bars || null; r.out.tempo = s0.tempo || null; r.out.nota = s0.nota || null; }
+    m.vals = {}; m.def.outs.forEach((o) => (m.vals[o.id] = r[o.id] ?? null));
+  };
+  const vals = [];
+  try {
+    for (let i = 0; i < times; i++) {
+      saved.forEach(({ m, seed }) => { if (seeded(m)) m.params.seed = String((Number(seed) || 0) + base + i); });
+      todo.forEach((m) => { try { run(m); } catch (e) { throw new Error(`na volta ${i + 1}, ${m.def.title}: ${e.message}`); } });
+      vals.push(src.vals[c.from.p]);
+    }
+  } finally {
+    saved.forEach(({ m, seed }) => { m.params.seed = seed; });
+    if (base || times > 1) todo.forEach((m) => { try { run(m); } catch { /* o erro original já está no objeto */ } });   // repõe as memórias internas de cada objeto
+    saved.forEach(({ m, vals: v }) => { m.vals = v; });
+  }
+  return { vals, random: gens };
+}
 function incoming(n, pid) {
   const c = graph.cables.find((k) => k.to.n === n.id && k.to.p === pid);
   if (!c) return null;
@@ -15980,29 +16391,29 @@ function readInputs(n) {
   }
   return a;
 }
+/** roda um objeto: lê as entradas, calcula, guarda as saídas (sem tocar na tela) */
+function runNode(n) {
+  n.err = null; n.info = null;
+  try {
+    const a = readInputs(n);
+    const r = n.def.run(a, n) || {};
+    const src = a.in$v;
+    if (!n.def.noTiming && r.out?.kind === 'chords' && !r.out.onsets && src?.onsets && src.chords.length === r.out.chords.length) { r.out.onsets = src.onsets; r.out.durs = src.durs; r.out.bars = src.bars || null; r.out.tempo = src.tempo || null; r.out.nota = src.nota || null; }
+    n.vals = {}; n.def.outs.forEach((o) => (n.vals[o.id] = r[o.id] ?? null));
+    n.info = r.info || null;
+    n.neck = r.neck || null;
+    n.lattice = r.lattice || null;
+    n.rcsol = r.rcsol || null;
+    n.tn = r.tn || null;
+    n.ext = r.ext || null;
+  } catch (e) { n.vals = {}; n.err = e.message; }
+}
 function evaluate() {
   TAB.clear(); TABW.clear();
   const order = topo();
   // o que ficou fora da ordem está num laço: escrever numa tabela a partir do que se leu dela
   if (order.length < graph.nodes.size) graph.nodes.forEach((n) => { if (!order.includes(n.id)) { n.vals = {}; n.info = null; n.err = 'realimentação: este objeto escreve numa tabela a partir do que leu dela (ou depende de quem faz isso). Use tabelas com nomes diferentes para ler e para escrever.'; refreshNode(n); } });
-  for (const id of order) {
-    const n = graph.nodes.get(id);
-    n.err = null; n.info = null;
-    try {
-      const a = readInputs(n);
-      const r = n.def.run(a, n) || {};
-      const src = a.in$v;
-      if (!n.def.noTiming && r.out?.kind === 'chords' && !r.out.onsets && src?.onsets && src.chords.length === r.out.chords.length) { r.out.onsets = src.onsets; r.out.durs = src.durs; r.out.bars = src.bars || null; r.out.tempo = src.tempo || null; r.out.nota = src.nota || null; }
-      n.vals = {}; n.def.outs.forEach((o) => (n.vals[o.id] = r[o.id] ?? null));
-      n.info = r.info || null;
-      n.neck = r.neck || null;
-      n.lattice = r.lattice || null;
-      n.rcsol = r.rcsol || null;
-      n.tn = r.tn || null;
-      n.ext = r.ext || null;
-    } catch (e) { n.vals = {}; n.err = e.message; }
-    refreshNode(n);
-  }
+  for (const id of order) { const n = graph.nodes.get(id); runNode(n); refreshNode(n); }
   $('stat').textContent = `${graph.nodes.size} nós · ${graph.cables.length} cabos`;
   drawMinimap();
 }
@@ -16636,7 +17047,9 @@ let saveT = 0;
 function serialize() {
   return { v: 1, nodes: [...graph.nodes.values()].map((n) => ({ id: n.id, type: n.type, x: Math.round(n.x), y: Math.round(n.y), params: n.params, shaded: n.shaded || undefined })), cables: graph.cables };
 }
-function save() { clearTimeout(saveT); saveT = setTimeout(() => store.set(KEY, JSON.stringify(serialize())), 300); if (window.__LIVE) LIVE.autosave(); }
+function save() { clearTimeout(saveT); saveT = setTimeout(persistNow, 300); if (window.__LIVE) LIVE.autosave(); }
+/** grava já: a aba atual volta para a área de trabalho (e um subpatch, para dentro do pai); o primeiro patch fica também na chave antiga */
+function persistNow() { clearTimeout(saveT); syncTab(); const t0 = WS.tabs[0]; if (t0) store.set(KEY, JSON.stringify(t0.data)); wsStore(); }
 function clearPatch() {
   stopAudio();
   graph.nodes.forEach((n) => n.el.remove());
@@ -16645,7 +17058,9 @@ function clearPatch() {
 function loadPatch(p) {
   clearPatch();
   (p.nodes || []).forEach((n) => addNode(n.type, n.x, n.y, n.params || {}, n.id, { shaded: n.shaded }));
-  graph.cables = (p.cables || []).filter((c) => graph.nodes.has(c.from.n) && graph.nodes.has(c.to.n));
+  // objetos de portas variáveis (subpatch): os cabos de portas que deixaram de existir caem
+  const hasP = (id, p, k) => { const m = graph.nodes.get(id); return m && (!m.def.dyn || m.def[k].some((o) => o.id === p)); };
+  graph.cables = (p.cables || []).filter((c) => hasP(c.from.n, c.from.p, 'outs') && hasP(c.to.n, c.to.p, 'ins'));
   evaluate();
   requestAnimationFrame(() => { drawCables(); });
   if (document.fonts?.ready) document.fonts.ready.then(() => { graph.nodes.forEach(refreshView); drawCables(); });
@@ -16962,6 +17377,22 @@ const EXAMPLES = [
       { id: 'n2', type: 'phy-hastes', x: 560, y: 50, params: { notas: 'C3 E3 G3 B3 D4 F#4 A4 C5 E5', n: '4', secs: 30, map: 'y', toque: 'all' } },
     ],
     cables: [] } },
+  { name: 'Subpatch: um sorteio encapsulado, usado duas vezes', patch: (() => {
+    const inner = { v: 1, nodes: [
+      { id: 'n1', type: 'sub-in', x: 40, y: 40, params: { nome: 'perfil', tipo: 'chords', padrao: '6000 6200 6500' } },
+      { id: 'n2', type: 'sub-in', x: 330, y: 40, params: { nome: 'semente', tipo: 'nums', padrao: '1' } },
+      { id: 'n3', type: 'sub-in', x: 620, y: 40, params: { nome: 'vezes', tipo: 'nums', padrao: '4' } },
+      { id: 'n4', type: 'alea-pertb', x: 40, y: 540, params: { range: 300, seed: 1 } },
+      { id: 'n5', type: 'loop', x: 330, y: 540, params: { n: 4 } },
+      { id: 'n6', type: 'sub-out', x: 660, y: 540, params: { nome: 'sorteios', tipo: 'chords' } }],
+    cables: [C('n1', 'out', 'n4', 'in'), C('n4', 'out', 'n5', 'in'), C('n2', 'out', 'n5', 'seed'), C('n3', 'out', 'n5', 'n'), C('n5', 'out', 'n6', 'in')] };
+    return { nodes: [
+      { id: 'n1', type: 'acorde', x: 40, y: 50, params: { text: '6000 6400 6700 7200' } },
+      { id: 'n2', type: 'sub', x: 360, y: 30, params: { nome: 'sorteio ×n', patch: inner, i_n2: '1', i_n3: '4' } },
+      { id: 'n3', type: 'sub', x: 360, y: 520, params: { nome: 'sorteio ×n', patch: JSON.parse(JSON.stringify(inner)), i_n2: '7', i_n3: '4' } },
+      { id: 'n4', type: 'partitura', x: 720, y: 50, params: { approx: '4' } }],
+    cables: [C('n1', 'out', 'n2', 'i_n1'), C('n1', 'out', 'n3', 'i_n1'), C('n2', 'o_n6', 'n4', 'in'), C('n3', 'o_n6', 'n4', 'b')] };
+  })() },
   { name: 'RQ: pôr em partitura o quicar de duas bolas', patch: {
     nodes: [
       { id: 'n1', type: 'phy-bolas', x: 40, y: 50, params: { notas: 'D4 A4', n: 2, secs: 8, elast: 0.85, v0: 3 } },
@@ -16984,9 +17415,12 @@ const radioItems = (key, pairs, after) => pairs.map(([v, l]) => ({ label: l, che
 const typeItem = (k) => ({ label: DEFS[k].title, type: k, act: () => spawn(k) });
 const MENUS = {
   file: { label: 'Arquivo', items: () => [
-    { label: 'Novo patch', act: () => { clearPatch(); evaluate(); drawCables(); save(); } },
+    { label: 'Novo patch (aba nova)', act: () => newTab() },
+    { label: 'Renomear aba…', act: () => dlgRenameTab() },
+    { label: 'Fechar aba', act: () => closeTab(WS.cur) },
+    { label: 'Limpar esta aba', act: () => { clearPatch(); evaluate(); drawCables(); save(); } },
     { sep: true },
-    { label: 'Exemplos', sub: EXAMPLES.map((ex) => ({ label: ex.name, act: () => loadPatch(JSON.parse(JSON.stringify(ex.patch))) })) },
+    { label: 'Exemplos', sub: EXAMPLES.map((ex) => ({ label: ex.name, act: () => openPatchTab(JSON.parse(JSON.stringify(ex.patch)), ex.name.split(/[:→]/)[0].trim().slice(0, 28)) })) },
     { sep: true },
     { label: 'Importar MIDI…', act: () => spawn('midi-in')?.ui.file?.click() },
     { label: 'Importar áudio…', act: () => spawn('audio-in')?.ui.file?.click() },
@@ -16996,6 +17430,7 @@ const MENUS = {
     { label: 'Copiar patch (JSON)…', act: dlgExport },
     { label: 'Colar patch (JSON)…', act: dlgImport },
   ] },
+  abs: { label: 'Abstrações', items: absMenu },
   edit: { label: 'Editar', items: () => [
     { label: 'Novo objeto…', k: 'duplo clique', act: () => openQuickCenter() },
     { label: 'Copiar objeto', k: 'Ctrl+C', act: () => copyNode() },
@@ -17048,7 +17483,7 @@ const MENUS = {
   ] },
   help: { label: 'Ajuda', items: () => [{ label: 'Como usar', act: dlgHelp }, { label: 'Sobre', act: dlgAbout }] },
 };
-const MENU_ORDER = ['file', 'edit', 'basic', 'gen', 'proc', 'lib', 'ana', 'view', 'opt', 'help'];
+const MENU_ORDER = ['file', 'edit', 'abs', 'basic', 'gen', 'proc', 'lib', 'ana', 'view', 'opt', 'help'];
 
 let menuStack = [], openBtn = null, deskPanel = null;
 function closeMenus() {
@@ -17139,9 +17574,9 @@ $('mMobile').addEventListener('click', () => (deskPanel ? closeMenus() : openDes
 $('mNew').addEventListener('click', () => openQuickCenter());
 $('mStop').addEventListener('click', stopAudio);
 
-function spawn(type) {
+function spawn(type, params = {}) {
   const x = desktop.scrollLeft / zoom + 60 + Math.random() * 120, y = desktop.scrollTop / zoom + 60 + Math.random() * 80;
-  const n = addNode(type, Math.round(x), Math.round(y));
+  const n = addNode(type, Math.round(x), Math.round(y), params);
   evaluate(); drawCables(); focusNode(n); save();
   return n;
 }
@@ -17227,7 +17662,7 @@ function dlgImport() {
   const ta = h('textarea', { 'aria-label': 'Cole o JSON do patch', placeholder: '{ "v": 1, "nodes": [...], "cables": [...] }' });
   const er = h('p', { class: 'gerr', hidden: true });
   dialog('Colar patch', ta, er, h('div', { class: 'acts' }, h('button', { class: 'gb def', text: 'Carregar', onclick: () => {
-    try { const p = JSON.parse(ta.value); if (!Array.isArray(p.nodes)) throw new Error('faltam os nós'); closeDialog(); loadPatch(p); }
+    try { const p = JSON.parse(ta.value); if (!Array.isArray(p.nodes)) throw new Error('faltam os nós'); closeDialog(); openPatchTab(p, 'colado'); }
     catch (e) { er.hidden = false; er.textContent = `JSON inválido: ${e.message}`; }
   } })));
 }
@@ -17269,6 +17704,10 @@ function dlgHelp() {
       h('li', { html: '<b>Ajustar notas e PDF:</b> na <i>Partitura</i>, clique num acorde (ou numa cabeça de nota) e use ↑ ↓ para subir ou descer um passo da aproximação escolhida (semitom, ¼ ou ⅛ de tom); os ajustes saem pelas saídas do objeto. «↓ PDF» salva a partitura num arquivo PDF, em folhas A4.' }),
       h('li', { html: '<b>RQ (quantificação rítmica):</b> em Bibliotecas → RQ, o objeto <i>rq</i> transforma uma sequência com tempos em ms (MIDI importado, áudio transcrito, física…) numa voz com compassos. As marcas cortam a sequência em segmentos; para cada um a biblioteca original do OpenMusic lista as melhores transcrições e você escolhe clicando. Roda o código Lisp original (IRCAM, GPL v3).' }),
       h('li', { html: '<b>Matter (física):</b> em Bibliotecas → Matter, simulações de corpos em que cada colisão vira uma nota: <i>bolas na caixa</i>, <i>tábua de pinos</i>, <i>pêndulos</i> (defasagem gradual), <i>pêndulo de hastes</i> (o pêndulo duplo, caótico, com quantas hastes você quiser, um ou vários ao mesmo tempo) e <i>cena livre</i>, escrita linha a linha. A força do impacto vira intensidade; a mesma semente dá sempre a mesma simulação. <b>▶ Tocar</b> mostra a cena em movimento junto com o som, com um anel em cada choque. Usa o motor Matter.js, embutido.' }),
+      h('li', { html: '<b>Reiterar sorteios:</b> o <i>loop</i> (Básico → Montar), ligado depois de um gerador aleatório, sorteia de novo a cada volta: <i>alea-pertb → loop</i> com 8 vezes dá oito resultados diferentes em sequência. Vale para qualquer objeto com «semente» no caminho; a semente do loop troca a série inteira.' }),
+      h('li', { html: '<b>Abas e subpatches:</b> a barra de abas abaixo dos menus guarda vários patches abertos lado a lado (<b>+</b> abre uma nova; duplo clique no nome renomeia). Um <i>subpatch</i> (menu Abstrações) é um patch dentro de um objeto: <b>Abrir ▸</b> edita o conteúdo numa aba; os objetos <i>entrada (inlet)</i> e <i>saída (outlet)</i> lá dentro viram as portas do objeto, da esquerda para a direita. O que você muda na aba do subpatch volta para o objeto no patch pai.' }),
+      h('li', { html: '<b>Abstrações:</b> <b>Salvar abstração…</b> guarda um subpatch com nome, neste navegador; o menu Abstrações insere uma cópia quando precisar. Cada inserção é independente (mudar a abstração depois não altera as já inseridas). Para levar ao iPad ou a outro navegador: Abstrações → Exportar / Importar (.json).' }),
+      h('li', { html: '<b>Jazz com acordes, sem cifra:</b> os objetos de voicing e o <i>harmonizar</i> aceitam também acordes quaisquer pelo cabo. Eles não são analisados nem ganham função: ficam com as suas próprias notas e intervalos. Onde a cifra falaria em 3ª, 5ª, 7ª, 9ª, vale a posição da nota no acorde, do grave ao agudo; as pilhas de quartas e quintas reordenam as notas do próprio acorde, sem acrescentar nenhuma.' }),
       h('li', { html: '<b>Jazz:</b> menu Bibliotecas → Jazz. <i>cifra</i> lê cifras (Dm7, G7b9, Cmaj7#11, F#m7b5, C7alt…) e <i>progressão</i> gera ii-V-I, turnarounds, blues, rhythm changes ou graus escritos à mão numa tonalidade; as duas levam as cifras pelo cabo para os objetos de voicing, que também aceitam cifras digitadas. <i>drop</i> faz fechado, drop 2, drop 3, drop 2 e 4, com inversões e condução de vozes; <i>quartal</i> faz So What, pilhas de quartas justas ou diatônicas e planing; <i>quintas (Kenny Barron)</i> faz as duas pilhas de quintas 1 5 9 | 3 7 11 e pilhas quintais; <i>voicing</i> faz shells, rootless A/B de Bill Evans, abertos e estruturas superiores; <i>harmonizar</i> põe uma melodia em block chords (locked hands, diminutos de passagem de Barry Harris). Cada objeto mostra os voicings no teclado.' }),
       h('li', { html: '<b>Som e aproximação:</b> o playback segue a notação: em ½ tom soa temperado, em ¼ e ⅛ de tom soa na grade correspondente (botões da Partitura; nas prévias, Opções → Notação e som nas prévias). Para ouvir os midicents sem arredondar (entonação justa, espectros), use Opções → Afinação do som → Exata.' }),
       h('li', { html: '<b>Recombinar:</b> análises (<i>virtual-fund</i>, <i>which-dist</i>, <i>closest-harm</i>) têm saída ○ para realimentar geradores.' }),
@@ -17297,8 +17736,7 @@ try { Object.assign(opt, JSON.parse(store.get('omtristan-opt') || '{}')); } catc
 applyTheme();
 let saved = null;
 try { saved = JSON.parse(store.get(KEY) || 'null'); } catch {}
-try { loadPatch(window.__LIVE ? (window.__LIVE.reopen?.nodes ? window.__LIVE.reopen : { v: 1, nodes: [], cables: [] }) : saved && saved.nodes?.length ? saved : JSON.parse(JSON.stringify(EXAMPLES[0].patch))); }
-catch (e) { console.error(e); loadPatch(JSON.parse(JSON.stringify(EXAMPLES[0].patch))); }
+wsInit(window.__LIVE ? (window.__LIVE.reopen?.nodes ? window.__LIVE.reopen : { v: 1, nodes: [], cables: [] }) : saved && saved.nodes?.length ? saved : JSON.parse(JSON.stringify(EXAMPLES[0].patch)));
 window.addEventListener('resize', () => { closeMenus(); drawCables(); });
 $('zReset').textContent = `${Math.round(zoom * 100)}%`;
 })();
