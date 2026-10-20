@@ -22869,7 +22869,9 @@ const PINTURA = (() => {
   const corIdx = (id) => CORES.findIndex((c) => c.id === id) + 1;   // 0 = não existe
   /** tamanhos da grade do desenho (colunas × linhas de pixels) */
   const TAMANHOS = [['160x80', '160 × 80 (traço grosso)'], ['224x112', '224 × 112'], ['320x160', '320 × 160 (traço fino)'], ['224x160', '224 × 160 (mais alto)'], ['448x224', '448 × 224 (alta precisão)']];
-  const tamanho = (t) => { const m = /^(\d+)\s*x\s*(\d+)$/.exec(String(t || '').trim()); const W = m ? +m[1] : 224, H = m ? +m[2] : 112; return [Math.max(16, Math.min(640, W)), Math.max(8, Math.min(400, H))]; };
+  const tamanho = (t) => { const m = /^(\d+)\s*x\s*(\d+)$/.exec(String(t || '').trim()); const W = m ? +m[1] : 224, H = m ? +m[2] : 112; return [Math.max(MIN_W, Math.min(MAX_W, W)), Math.max(MIN_H, Math.min(MAX_H, H))]; };
+  /** limites do tamanho livre (pixels): largura = tempo, altura = resolução das alturas */
+  const MIN_W = 16, MAX_W = 2048, MIN_H = 8, MAX_H = 512;
   /** quantizações: passos em frações da semibreve (1/m) */
   const QUANT = [['1/2', '1/2 (mínima)'], ['1/4', '1/4 (semínima)'], ['1/8', '1/8 (colcheia)'], ['1/16', '1/16 (semicolcheia)'], ['1/32', '1/32 (fusa)'],
     ['1/6', '1/6 (tercina de semínimas)'], ['1/12', '1/12 (tercina de colcheias)'], ['1/24', '1/24 (tercina de semicolcheias)'],
@@ -22908,6 +22910,14 @@ const PINTURA = (() => {
     if (W === W2 && H === H2) return A.slice();
     const B = vazia(W2, H2);
     for (let y = 0; y < H2; y++) { const sy = Math.min(H - 1, Math.floor(((y + 0.5) * H) / H2)); for (let x = 0; x < W2; x++) B[y * W2 + x] = A[sy * W + Math.min(W - 1, Math.floor(((x + 0.5) * W) / W2))]; }
+    return B;
+  }
+  /** muda o tamanho: «esticar» reamostra o conteúdo; «manter» deixa os pixels no lugar, presos embaixo à esquerda
+   *  (o tempo começa à esquerda, as alturas graves embaixo): cortando o que sobra ou acrescentando espaço vazio */
+  function redimensionar(A, W, H, W2, H2, modo = 'esticar') {
+    if (modo === 'esticar') return resample(A, W, H, W2, H2);
+    const B = vazia(W2, H2), dy = H2 - H;
+    for (let y = 0; y < H; y++) { const y2 = y + dy; if (y2 < 0 || y2 >= H2) continue; for (let x = 0; x < Math.min(W, W2); x++) B[y2 * W2 + x] = A[y * W + x]; }
     return B;
   }
   const usadas = (A) => { const s = new Set(); for (let i = 0; i < A.length; i++) if (A[i]) s.add(A[i]); return [...s].sort((a, b) => a - b); };
@@ -22990,6 +23000,19 @@ const PINTURA = (() => {
     while ((m = re.exec(s))) { const n = +m[1], d = +m[2]; if (!n || !d || (d & (d - 1))) throw new Error(`compasso ${n}/${d} inválido (o denominador é potência de 2)`); out.push([n, d]); }
     if (!out.length) throw new Error('compassos: escreva ao menos um, como 4/4 ou 4 × 4/4');
     if (out.length > 400) throw new Error('compassos: no máximo 400');
+    return out;
+  }
+  /** compassos → texto compacto: «4 × 4/4 2 × 3/4 5/8» */
+  function escreverMetrica(sigs) {
+    const out = []; let i = 0;
+    while (i < sigs.length) { let k = i; while (k + 1 < sigs.length && sigs[k + 1][0] === sigs[i][0] && sigs[k + 1][1] === sigs[i][1]) k++; const n = k - i + 1, t = `${sigs[i][0]}/${sigs[i][1]}`; out.push(n > 1 ? `${n} × ${t}` : t); i = k + 1; }
+    return out.join(' ');
+  }
+  /** compassos acrescentados (repetindo o último) ou tirados do fim até a duração mais próxima de `total` semibreves */
+  function ajustarMetrica(sigs, total) {
+    const out = sigs.map((s) => [...s]), len = (s) => s[0] / s[1]; let t = out.reduce((a, s) => a + len(s), 0);
+    while (out.length < 400 && t + len(out[out.length - 1]) / 2 <= total) { out.push([...out[out.length - 1]]); t += len(out[out.length - 1]); }
+    while (out.length > 1 && t - len(out[out.length - 1]) / 2 >= total) { t -= len(out[out.length - 1]); out.pop(); }
     return out;
   }
   const gcd = (a, b) => { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a || 1; };
@@ -23168,7 +23191,7 @@ const PINTURA = (() => {
     return { chords: it.map((o) => [...o.set].sort((a, b) => a - b)), onsets: it.map((o) => o.on), durs: it.map((o) => o.dur) };
   }
 
-  return { CORES, corIdx, TAMANHOS, tamanho, QUANT, parseQ, vazia, encode, decode, resample, usadas, stamp, line, rect,
+  return { CORES, corIdx, TAMANHOS, tamanho, MIN_W, MAX_W, MIN_H, MAX_H, redimensionar, escreverMetrica, ajustarMetrica, QUANT, parseQ, vazia, encode, decode, resample, usadas, stamp, line, rect,
     mascaraPoligono, pedaco, apagar, colar, virarH, virarV, girar180, esticar, tudo,
     parseMetrica, colunas, integral, cobertura, lerCor, ESCALAS, parseNota, escalaNotas, altaFaixas, arvore, proporcoes, converter, juntar };
 })();
@@ -23234,7 +23257,43 @@ function ptState(n) {
 }
 function ptCommit(n) {
   const st = n.ui.pt; n.params.desenho = PINTURA.encode(st.G.A, st.G.W, st.G.H); st.src = n.params.desenho;
-  ptFields(n); schedule(true);
+  ptFields(n); if (n.ui.ptPop) ptPopZoom(n); schedule(true);
+}
+/** o estado inteiro (para desfazer uma mudança de tamanho ou de compassos) */
+const ptFull = (n) => { const G = n.ui.pt.G; return { A: G.A.slice(), W: G.W, H: G.H, tam: n.params.tam, comp: n.params.compassos, cores: n.params.cores }; };
+/** grava tamanho e compassos nos campos (o menu de tamanho ganha a opção do tamanho livre) */
+function ptSetSize(n, tam, comp) {
+  const P = n.params, ui = n.ui; P.tam = tam; if (comp != null) P.compassos = comp;
+  const f = ui.rows.tam?.field; if (f) { if (![...f.options].some((o) => o.value === tam)) { const [W, H] = PINTURA.tamanho(tam); f.append(h('option', { value: tam, text: `${W} × ${H} (livre)` })); } f.value = tam; }
+  if (ui.rows.compassos && !ui.rows.compassos.field.disabled) ui.rows.compassos.field.value = P.compassos;
+}
+/** redimensiona o desenho: «esticar» reamostra o conteúdo, «manter» deixa os pixels no lugar (embaixo à esquerda);
+ *  com «acrescentar compassos», mudar a largura acrescenta (ou tira) compassos no fim mantendo os pixels por compasso */
+function ptResize(n, W2, H2, modo = n.params.redim || 'manter', addBars = n.params.acresc !== '0') {
+  const st = n.ui.pt, P = n.params; ptSelClear(n);
+  const old = st.G; W2 = Math.max(PINTURA.MIN_W, Math.min(PINTURA.MAX_W, Math.round(W2))); H2 = Math.max(PINTURA.MIN_H, Math.min(PINTURA.MAX_H, Math.round(H2)));
+  let comp = P.compassos;
+  if (addBars && W2 !== old.W) {
+    try {
+      const sigs = PINTURA.parseMetrica(P.compassos), tot = sigs.reduce((a, q) => a + q[0] / q[1], 0), ppw = old.W / tot;
+      const ns = PINTURA.ajustarMetrica(sigs, W2 / ppw), nt = ns.reduce((a, q) => a + q[0] / q[1], 0);
+      comp = PINTURA.escreverMetrica(ns); W2 = Math.max(PINTURA.MIN_W, Math.min(PINTURA.MAX_W, Math.round(nt * ppw)));
+    } catch { /* compassos inválidos: só o tamanho */ }
+  }
+  if (W2 === old.W && H2 === old.H && comp === P.compassos) return;
+  st.undo.push(ptFull(n)); if (st.undo.length > 60) st.undo.shift(); st.redo = [];
+  st.G = { W: W2, H: H2, A: PINTURA.redimensionar(old.A, old.W, old.H, W2, H2, modo) };
+  // «manter» na altura: as cores com escala ganham (ou perdem) notas no agudo, para cada pixel continuar na mesma altura
+  if (modo === 'manter' && H2 !== old.H) {
+    const cores = ptCores(P);
+    Object.keys(cores).forEach((id) => {
+      const c = ptCfg(cores, id); if (c.modo !== 'escala' || incoming(n, `c_${id}`)) return;
+      try { const R = PINTURA.escalaNotas(c.tonica, c.escala, c.grave, c.ate).length, R2 = Math.max(1, Math.round((R * H2) / old.H)), ext = PINTURA.escalaNotas(c.tonica, c.escala, c.grave, '10');
+        if (ext.length >= R2) cores[id] = { ...cores[id], ate: name12(ext[R2 - 1]) }; } catch { /* escala inválida: fica */ }
+    });
+    P.cores = JSON.stringify(cores);
+  }
+  ptSetSize(n, `${W2}x${H2}`, comp); ptCommit(n); if (n.ui.ptPop) ptPopInfo(n);
 }
 function ptPush(n, before) { const st = n.ui.pt; st.undo.push(before); if (st.undo.length > 60) st.undo.shift(); st.redo = []; }
 const ptSaveCores = (n, cores) => { n.params.cores = JSON.stringify(cores); };
@@ -23331,7 +23390,7 @@ function ptDraw(n) {
   const cv = n.ui.ptCv; if (!cv) return;
   const P = n.params, st = ptState(n), G = st.G, th = ptTheme(n), cur = ptCorOf(P.cor), ci = cur ? PINTURA.corIdx(cur.id) : 0, alta = ptAlta(P);
   const r = cv.getBoundingClientRect(), dpr = Math.max(1, window.devicePixelRatio || 1);
-  const cw = Math.max(64, Math.min(2400, Math.round((r.width || 448) * dpr))), ch = Math.round((cw * G.H) / G.W);
+  const cw = Math.max(64, Math.min(Math.max(2400, Math.floor(16000000 / Math.max(1, G.H * 4))), 8192, Math.round((r.width || 448) * dpr))), ch = Math.round((cw * G.H) / G.W);
   if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
   cv.style.aspectRatio = `${G.W} / ${G.H}`;
   const g = cv.getContext('2d'); if (!g) return;
@@ -23498,6 +23557,113 @@ function ptDrawSel(n, g, cw, ch, th) {
   if (d && d.f === 'selr' && d.mode === 'nova') { const a = d.p0, b = d.last; ants(() => { g.beginPath(); g.rect(Math.min(a.x, b.x) * sx + 0.5, Math.min(a.y, b.y) * sy + 0.5, (Math.abs(b.x - a.x) + 1) * sx - 1, (Math.abs(b.y - a.y) + 1) * sy - 1); }); }
   if (d && d.f === 'sell' && d.mode === 'nova') ants(() => { g.beginPath(); d.pts.forEach(([x, y], k) => (k ? g.lineTo(x * sx, y * sy) : g.moveTo(x * sx, y * sy))); });
 }
+// ── a janela grande: o mesmo editor (ferramentas, paleta, linhas das cores, desenho) sobre o patch, com zoom e alças ──
+/** esticar / comprimir em % (como o Stretch and Skew do jspaint): a seleção ou o desenho todo */
+function ptStretchDlg(n) {
+  const fh = h('input', { type: 'text', inputmode: 'decimal', value: '150', 'aria-label': 'horizontal (%)', style: 'width:6em' }), fv = h('input', { type: 'text', inputmode: 'decimal', value: '100', 'aria-label': 'vertical (%)', style: 'width:6em' });
+  const go = () => { const x = parseFloat(String(fh.value).replace(',', '.')), y = parseFloat(String(fv.value).replace(',', '.')); if (!(x > 0 && y > 0 && x <= 1000 && y <= 1000)) { fh.focus(); return; } closeDialog(); ptTransform(n, (p) => PINTURA.esticar(p, x / 100, y / 100)); };
+  [fh, fv].forEach((f) => f.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); }));
+  dialog('Esticar / comprimir', h('p', { text: `${n.ui.pt.sel ? 'A seleção' : 'O desenho todo (sem seleção)'} muda de tamanho, a partir do canto de cima à esquerda. Horizontal: 200% = aumentação (durações dobradas), 50% = diminuição. Vertical: o âmbito dos intervalos aumenta ou diminui.` }),
+    h('div', { style: 'display:grid;grid-template-columns:auto auto;gap:6px 10px;align-items:center;margin:8px 0' }, h('label', { text: 'horizontal (%)' }), fh, h('label', { text: 'vertical (%)' }), fv),
+    h('div', { class: 'acts' }, h('button', { class: 'gb def', text: 'Aplicar', onclick: go }), h('button', { class: 'gb', text: 'Cancelar', onclick: closeDialog })));
+}
+/** o que o tamanho quer dizer em música */
+function ptPopInfo(n) {
+  const ui = n.ui, st = n.ui.pt, P = n.params, G = st.G; if (!ui.ptPop) return;
+  ui.ptPopW.value = G.W; ui.ptPopH.value = G.H;
+  let t = `${G.W} × ${G.H} pixels`;
+  try {
+    const sigs = PINTURA.parseMetrica(P.compassos), tot = sigs.reduce((a, q) => a + q[0] / q[1], 0), wholeMs = (4 * 60000) / Math.max(1, +P.tempo || 60), ppw = G.W / tot;
+    const cur = ptCorOf(P.cor), R = cur ? ptNotasDe(ptCfg(ptCores(P), cur.id), ptCabo(n, null, cur.id, -1), cur.id).length : 0;
+    t += ` · ${sigs.length} compasso(s) (${PINTURA.escreverMetrica(sigs)}) · 1 pixel = 1/${+(ppw).toFixed(1)} de semibreve ≈ ${+(wholeMs / ppw).toFixed(1)} ms${R ? ` · ${cur.id}: ${R} notas, ${+(G.H / R).toFixed(1)} px por nota` : ''}`;
+  } catch { /* compassos em edição */ }
+  ui.ptPopInfo.textContent = t;
+  ui.ptPopRedim.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.r === (P.redim || 'manter'))));
+  ui.ptPopAcr.setAttribute('aria-pressed', String(P.acresc !== '0'));
+  ui.ptPopZoom.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.z === String(st.zoom || 'fit'))));
+}
+/** zoom: «ajustar» cabe na janela; 1×, 2×, 4× = pixels de tela por pixel do desenho */
+function ptPopZoom(n) {
+  const ui = n.ui, st = n.ui.pt, G = st.G, sc = ui.ptPopScroll; if (!ui.ptPop) return;
+  const z = st.zoom || 'fit', k = z === 'fit' ? Math.max(0.25, Math.min((sc.clientWidth - 40) / G.W, (sc.clientHeight - 40) / G.H)) : +z;
+  ui.ptCv.style.width = `${Math.round(G.W * k)}px`; ui.ptCv.style.aspectRatio = `${G.W} / ${G.H}`;
+  ptDraw(n); ptPopInfo(n);
+}
+function ptOpen(n) {
+  const ui = n.ui, st = ptState(n), P = n.params; if (ui.ptPop) return;
+  ptSelClear(n);
+  const box = ui.ext, kids = [...box.childNodes], big = window.innerWidth >= 900;
+  const btn = (txt, title, on, extra = {}) => h('button', { class: 'gb', type: 'button', text: txt, title, 'aria-label': title, style: 'padding:2px 8px;min-height:30px', onclick: on, ...extra });
+  const seg = (label, ...b) => h('div', { class: 'seg', role: 'group', 'aria-label': label, style: 'padding-left:2px;flex-wrap:wrap' }, ...b);
+  const close = () => ptClose(n);
+  ui.ptPopZoom = [['fit', 'ajustar'], ['1', '1×'], ['2', '2×'], ['4', '4×']].map(([z, t]) => btn(t, z === 'fit' ? 'Zoom: o desenho inteiro na janela' : `Zoom ${t}: ${t.replace('×', '')} ponto(s) de tela por pixel do desenho`, () => { st.zoom = z; ptPopZoom(n); }, { 'data-z': z }));
+  ui.ptPopW = h('input', { type: 'text', inputmode: 'numeric', 'aria-label': 'largura (pixels)', style: 'width:4.6em;background:var(--paper);border:var(--frame);border-radius:0;padding:1px 5px' });
+  ui.ptPopH = h('input', { type: 'text', inputmode: 'numeric', 'aria-label': 'altura (pixels)', style: 'width:4.6em;background:var(--paper);border:var(--frame);border-radius:0;padding:1px 5px' });
+  const apply = () => ptResize(n, parseInt(ui.ptPopW.value, 10) || st.G.W, parseInt(ui.ptPopH.value, 10) || st.G.H);
+  [ui.ptPopW, ui.ptPopH].forEach((f) => f.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } }));
+  ui.ptPopRedim = [['manter', 'manter', 'Ao redimensionar, os pixels ficam no lugar (presos embaixo à esquerda): cortar ou acrescentar espaço vazio'], ['esticar', 'esticar', 'Ao redimensionar, o desenho estica ou comprime junto']]
+    .map(([r, t, tt]) => btn(t, tt, () => { P.redim = r; ptPopInfo(n); save(); }, { 'data-r': r }));
+  ui.ptPopAcr = btn('acrescentar compassos ao alargar', 'Ligado: mudar a largura acrescenta (ou tira) compassos no fim, com os mesmos pixels por compasso — em «manter», espaço para mais música; em «esticar», aumentação. Desligado: o desenho sempre ocupa os compassos dados, e a largura só muda a resolução do tempo', () => { P.acresc = P.acresc === '0' ? '1' : '0'; ptPopInfo(n); save(); });
+  ui.ptPopInfo = h('p', { class: 'gdesc', role: 'status', style: 'margin:0;line-height:1.3' });
+  // o desenho num quadro com rolagem e três alças (direita, embaixo, canto), como no jspaint
+  const wrap = h('div', { style: 'position:relative;display:inline-block;margin:6px 26px 26px 6px;vertical-align:top' });
+  const ghost = h('div', { style: 'position:absolute;left:0;top:0;border:2px dashed var(--ink);pointer-events:none;display:none;box-sizing:border-box' });
+  const gl = h('span', { class: 'gdesc', style: 'position:absolute;right:2px;bottom:2px;background:var(--paper);padding:0 3px;margin:0' }); ghost.append(gl);
+  const handle = (kind, css, cursor) => {
+    const el = h('div', { 'data-alca': kind, title: 'Arraste para mudar o tamanho', style: `position:absolute;width:16px;height:16px;background:var(--paper);border:2px solid var(--ink);box-sizing:border-box;touch-action:none;cursor:${cursor};${css}` });
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button > 0) return; e.preventDefault(); e.stopPropagation();
+      const r = ui.ptCv.getBoundingClientRect(), k = r.width / st.G.W, x0 = e.clientX, y0 = e.clientY, W0 = st.G.W, H0 = st.G.H; let W = W0, H = H0, id = e.pointerId, live = true;
+      try { el.setPointerCapture(id); } catch { /* */ }
+      ghost.style.display = 'block';
+      const mv = (ev) => { if (ev.pointerId !== id || !live) return; if (kind !== 's') W = Math.max(PINTURA.MIN_W, Math.min(PINTURA.MAX_W, Math.round(W0 + (ev.clientX - x0) / k))); if (kind !== 'e') H = Math.max(PINTURA.MIN_H, Math.min(PINTURA.MAX_H, Math.round(H0 + (ev.clientY - y0) / k)));
+        ghost.style.width = `${W * k}px`; ghost.style.height = `${H * k}px`; gl.textContent = `${W} × ${H}`; };
+      const other = (ev) => { if (ev.pointerId !== id) { live = false; ghost.style.display = 'none'; } };   // um segundo dedo desiste
+      const up = (ev) => { if (ev.pointerId !== id) return; el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); document.removeEventListener('pointerdown', other, true); ghost.style.display = 'none';
+        if (live && ev.type === 'pointerup' && (W !== W0 || H !== H0)) { ptResize(n, W, H); ptPopZoom(n); } };
+      el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); document.addEventListener('pointerdown', other, true);
+      mv(e);
+    });
+    return el;
+  };
+  wrap.append(ui.ptCv, ghost, handle('e', 'right:-20px;top:calc(50% - 8px)', 'ew-resize'), handle('s', 'bottom:-20px;left:calc(50% - 8px)', 'ns-resize'), handle('se', 'right:-20px;bottom:-20px', 'nwse-resize'));
+  ui.ptPopScroll = h('div', { style: `flex:1 1 420px;min-width:0;min-height:${big ? '260px' : '50vh'};overflow:auto;border:2px solid var(--line);background:var(--desk);-webkit-overflow-scrolling:touch` }, wrap);
+  const side = h('div', { style: `flex:0 0 ${big ? '470px' : '100%'};max-width:100%;overflow:auto;${big ? '' : 'max-height:45vh;'}padding-right:4px` }, ...kids.filter((k) => k !== ui.ptCv && k !== ui.ptOpenRow));
+  side.querySelectorAll('.gport').forEach((g) => { g.style.visibility = 'hidden'; });
+  const bar = h('div', { class: 'gwin-bar', style: 'cursor:move' }, h('button', { class: 'gbtn', type: 'button', 'aria-label': 'Fechar', title: 'Fechar (Esc)', text: '×', onclick: close }), h('span', { class: 'gwin-title', text: 'Pintura — desenho' }), h('span', { style: 'width:18px' }));
+  const win = h('div', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Pintura: desenho', style: `position:fixed;${big ? 'left:24px;top:24px;right:24px;bottom:24px' : 'inset:0'};display:flex;flex-direction:column;background:var(--paper);border:var(--frame);box-shadow:6px 6px 0 var(--shadow)` },
+    bar,
+    h('div', { style: 'padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-height:0;flex:1' },
+      h('div', { class: 'acts' }, h('span', { class: 'gdesc', text: 'zoom', style: 'margin:0' }), seg('Zoom', ...ui.ptPopZoom),
+        h('span', { class: 'gdesc', text: 'tamanho', style: 'margin:0 0 0 8px' }), ui.ptPopW, h('span', { text: '×' }), ui.ptPopH, btn('aplicar', 'Aplica a largura e a altura escritas', apply),
+        h('span', { class: 'gdesc', text: 'ao redimensionar', style: 'margin:0 0 0 8px' }), seg('Ao redimensionar', ...ui.ptPopRedim), ui.ptPopAcr,
+        btn('esticar / comprimir…', 'Esticar ou comprimir em % a seleção ou o desenho todo', () => ptStretchDlg(n))),
+      ui.ptPopInfo,
+      h('div', { style: 'display:flex;flex-wrap:wrap;align-content:flex-start;gap:10px;min-height:0;flex:1;overflow:auto' }, side, ui.ptPopScroll)));
+  const pop = h('div', { class: 'pt-pop', style: 'position:fixed;inset:0;z-index:9400;background:var(--desk)' }, win);
+  // arrastar a janela pela barra
+  bar.addEventListener('pointerdown', (e) => { if (e.target.closest('button') || !big) return; e.preventDefault(); const r = win.getBoundingClientRect(), x0 = e.clientX - r.left, y0 = e.clientY - r.top, w = r.width, hh = r.height; bar.setPointerCapture(e.pointerId);
+    const mv = (ev) => { const L = Math.max(0, Math.min(window.innerWidth - 80, ev.clientX - x0)), T = Math.max(0, Math.min(window.innerHeight - 40, ev.clientY - y0)); Object.assign(win.style, { left: `${L}px`, top: `${T}px`, right: 'auto', bottom: 'auto', width: `${w}px`, height: `${hh}px` }); };
+    const up = () => { bar.removeEventListener('pointermove', mv); bar.removeEventListener('pointerup', up); }; bar.addEventListener('pointermove', mv); bar.addEventListener('pointerup', up); });
+  // os atalhos da caixa valem na janela; Esc (sem seleção) fecha; nada escapa para o patcher (Delete não apaga a janela do objeto)
+  pop.addEventListener('keydown', (e) => { ui.ptKeys(e); if (!e.defaultPrevented && e.key === 'Escape' && !document.querySelector('.dlg-back')) { e.preventDefault(); close(); } e.stopPropagation(); });
+  ui.ptPop = pop; ui.ptPopKids = kids;
+  const guard = setInterval(() => { if (!ui.ptPop) { clearInterval(guard); return; } if (graph.nodes.get(n.id) !== n || !n.el.isConnected) { clearInterval(guard); pop.remove(); ui.ptPop = null; } }, 500);   // o objeto foi apagado ou o patch trocado
+  box.append(h('p', { class: 'gdesc', 'data-pt-ph': '1', style: 'margin:6px 0;text-align:center', text: 'editando na janela… (Esc ou × fecha)' }));
+  document.body.append(pop);
+  st.zoom = st.zoom || 'fit';
+  requestAnimationFrame(() => { ptPopZoom(n); try { ui.ptCv.focus({ preventScroll: true }); } catch { /* */ } });
+}
+function ptClose(n) {
+  const ui = n.ui; if (!ui.ptPop) return;
+  ptSelClear(n);
+  const box = ui.ext; box.querySelector('[data-pt-ph]')?.remove();
+  ui.ptPopKids.forEach((k) => box.append(k));
+  box.querySelectorAll('.gport').forEach((g) => { g.style.visibility = ''; });
+  ui.ptCv.style.width = '100%';
+  ui.ptPop.remove(); ui.ptPop = null; ui.ptPopKids = null;
+  ptDraw(n); requestAnimationFrame(drawCables);
+}
 function ptInit(n, box) {
   const ui = n.ui, P = n.params;
   if (!P.cores) P.cores = JSON.stringify({ azul: PT_NOVA() });
@@ -23506,7 +23672,13 @@ function ptInit(n, box) {
   ui.ptTools = PT_FERR.map(([f, t, tt]) => btn(t, tt, () => { if (!(PT_SEL.has(f) && PT_SEL.has(P.ferr))) ptSelClear(n); P.ferr = f; ptFields(n); save(); }, { 'data-f': f }));
   ui.ptEsp = [1, 2, 4, 8].map((e) => btn(String(e), `Espessura ${e} pixel${e > 1 ? 's' : ''} (pincel, linha, retângulo, borracha)`, () => { P.esp = String(e); ptFields(n); save(); }, { 'data-e': String(e) }));
   const st = ptState(n);
-  const swap = (from, to) => { if (!from.length) return; to.push(st.G.A.slice()); st.G.A = from.pop(); ptCommit(n); };
+  // entradas do desfazer: a grade (Uint8Array) ou, quando o tamanho ou os compassos mudaram, o estado inteiro
+  const swap = (from, to) => {
+    if (!from.length) return; const e = from.pop();
+    if (e.A) { to.push(ptFull(n)); ptSetSize(n, e.tam, e.comp); if (e.cores != null) P.cores = e.cores; st.G = { W: e.W, H: e.H, A: e.A }; }
+    else { if (e.length !== st.G.A.length) return; to.push(st.G.A.slice()); st.G.A = e; }
+    ptCommit(n);
+  };
   // desfazer com um pedaço flutuante: ele some (a colagem ou o movimento é desfeito); refazer fixa antes
   const undo = () => { if (st.sel && st.sel.flt) { ptSelCancel(n); return; } st.sel = null; ptAnts(n); swap(st.undo, st.redo); };
   const redo = () => { ptSelClear(n); swap(st.redo, st.undo); };
@@ -23540,6 +23712,7 @@ function ptInit(n, box) {
     row(seg('Ferramentas', ...ui.ptTools.slice(0, 6))),
     row(seg('Mais ferramentas', ...ui.ptTools.slice(6))),
     row(lab('espessura'), seg('Espessura', ...ui.ptEsp), ui.ptUndo, ui.ptRedo, limpar),
+    ui.ptOpenRow = row(ui.ptOpenB = btn('⤢ abrir em janela', 'Abre o desenho numa janela grande, com zoom e alças para mudar o tamanho (também: dois toques no desenho)', () => ptOpen(n)), btn('esticar / comprimir…', 'Esticar ou comprimir em % — a seleção ou, sem seleção, o desenho todo (horizontal = aumentação/diminuição, vertical = âmbito)', () => ptStretchDlg(n))),
     row(seg('Seleção', ...acts)),
     row(seg('Virar e girar', ...trans), seg('Esticar', ...est)),
     row(lab('colar:'), seg('Modo de colar', ...ui.ptModo), ui.ptEnc = btn('encaixar na grade', 'Encaixar na grade: o que se move ou se cola anda em passos da quantização da cor escolhida (e, na vertical, de uma nota); as setas também', () => { P.encaixe = P.encaixe === '0' ? '1' : '0'; ptFields(n); save(); })),
@@ -23547,7 +23720,7 @@ function ptInit(n, box) {
     h('div', { role: 'group', 'aria-label': 'Parâmetros das cores' }, ...ui.ptBlocks.map((B) => B.el)),
     ui.ptCv, ui.ptLeg);
   // atalhos, só com o foco no desenho ou nos botões da caixa (fora dos campos de texto): não roubam os do patcher
-  box.addEventListener('keydown', (e) => {
+  const keys = (e) => {
     if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
     const k = e.key.toLowerCase(), mod = (e.ctrlKey || e.metaKey) && !e.altKey;
     let done = true;
@@ -23567,7 +23740,8 @@ function ptInit(n, box) {
     }
     else done = false;
     if (done) { e.preventDefault(); e.stopPropagation(); }
-  });
+  };
+  ui.ptKeys = keys; box.addEventListener('keydown', keys);
   // desenhar e selecionar: mouse, caneta e dedo (Pointer Events); um segundo dedo cancela o gesto (para o zoom)
   const at = (e) => { const r = ui.ptCv.getBoundingClientRect(); return { x: Math.floor(((e.clientX - r.left) / Math.max(1, r.width)) * st.G.W), y: Math.floor(((e.clientY - r.top) / Math.max(1, r.height)) * st.G.H) }; };
   const tip = () => { const f = P.ferr || 'pincel', e = Math.max(1, +P.esp || 8); return { f, t: f === 'lapis' ? 1 : f === 'borr' ? Math.max(2, e * 2) : e, v: f === 'borr' ? 0 : PINTURA.corIdx(P.cor) }; };
@@ -23581,6 +23755,12 @@ function ptInit(n, box) {
     }
     if (e.button > 0) return;
     e.preventDefault(); e.stopPropagation();
+    // dois toques (ou duplo clique) no desenho pequeno abrem a janela; o ponto que o primeiro toque fez é desfeito
+    const tp = st.tap; st.tap = null;
+    if (!ui.ptPop && tp && performance.now() - tp.t < 380 && Math.hypot(e.clientX - tp.x, e.clientY - tp.y) < 14) {
+      if (tp.pushed && st.undo.length) { st.G.A = st.undo.pop(); ptCommit(n); }
+      ptOpen(n); return;
+    }
     try { ui.ptCv.focus({ preventScroll: true }); } catch { /* sem foco */ }
     ptState(n);
     const p = at(e), T = tip();
@@ -23611,6 +23791,8 @@ function ptInit(n, box) {
   const end = (e) => {
     const d = st.drag; if (!d || e.pointerId !== d.id) return;
     st.drag = null;
+    const tap = d.p0 && d.last && d.p0.x === d.last.x && d.p0.y === d.last.y && e.type === 'pointerup' && (!d.pts || d.pts.length < 2);
+    st.tap = tap ? { t: performance.now(), x: e.clientX, y: e.clientY, pushed: false } : null;
     if (d.mode === 'mover') { if (e.type === 'pointercancel') { st.sel.x = d.sx; st.sel.y = d.sy; } ptDraw(n); return; }
     if (d.mode === 'nova') {
       if (e.type === 'pointercancel') { ptDraw(n); return; }
@@ -23629,14 +23811,15 @@ function ptInit(n, box) {
     if (e.type === 'pointercancel') { st.G.A = d.snap; ptDraw(n); return; }
     let same = true; for (let i = 0; i < d.snap.length; i++) if (d.snap[i] !== st.G.A[i]) { same = false; break; }
     if (same) return;
-    ptPush(n, d.snap); ptCommit(n);
+    ptPush(n, d.snap); if (st.tap) st.tap.pushed = true; ptCommit(n);
   };
   ui.ptCv.addEventListener('pointerup', end); ui.ptCv.addEventListener('pointercancel', end);
   ui.ptCv.addEventListener('contextmenu', (e) => e.preventDefault());
   // mudar o tamanho reamostra o desenho (vizinho mais próximo); a alta precisão pede um desenho de 448 × 224
-  const resize = () => { ptSelClear(n); const old = st.G, [W, H] = PINTURA.tamanho(P.tam); if (old.W === W && old.H === H) return; ptPush(n, old.A.slice()); st.undo = []; st.G = { W, H, A: PINTURA.resample(old.A, old.W, old.H, W, H) }; ptCommit(n); };
-  ui.rows.tam?.field.addEventListener('change', resize);
-  ui.rows.precisao?.field.addEventListener('change', () => { if (ptAlta(P) && PINTURA.tamanho(P.tam)[0] < 320) { P.tam = '448x224'; if (ui.rows.tam) ui.rows.tam.field.value = P.tam; resize(); } else ptFields(n); });
+  // o menu de tamanho estica o desenho (a música não muda, só a resolução); a alta precisão pede ao menos 448 × 224
+  ui.rows.tam?.field.addEventListener('change', () => { const [W, H] = PINTURA.tamanho(P.tam); P.tam = `${st.G.W}x${st.G.H}`; ptResize(n, W, H, 'esticar', false); });
+  ui.rows.precisao?.field.addEventListener('change', () => { if (ptAlta(P) && st.G.W < 320) ptResize(n, Math.max(448, st.G.W), Math.max(224, st.G.H), 'esticar', false); else ptFields(n); });
+  ptSetSize(n, `${st.G.W}x${st.G.H}`);
   ui.rows.compassos?.field.addEventListener('input', () => ptDraw(n));
   ptFields(n);
   requestAnimationFrame(() => ptDraw(n));
@@ -23657,7 +23840,7 @@ function ptExemplo() {
 
 Object.assign(DEFS, {
   pintura: { group: 'Fontes', title: 'Pintura', noTiming: true, extview: true, wide: true, extInit: ptInit, extRender: ptRender,
-    desc: 'Um paint para gerar partituras (inspirado no jspaint): desenhe na caixa — o tempo corre da esquerda para a direita ao longo dos compassos, a altura sobe de baixo para cima. Cada cor da paleta é uma camada independente, com a sua linha de parâmetros (aberta ao escolher a cor; × a tira): as alturas, escritas («notas») ou geradas por uma escala (tônica, tipo — maior, menores, modos, pentatônicas, blues, tons inteiros, octatônicas, aumentada, cromática em ½, ¼ ou ⅛ de tom — e âmbito: nota grave até nota aguda ou n oitavas), a quantização e uma entrada de cabo própria (notas que substituem as da linha). Para cada cor o desenho é quantizado numa grade: colunas = passos da quantização (1/8, tercinas 1/12, quintinas 1/20…), linhas = as notas da cor (a altura dividida em faixas, a mais grave embaixo); uma célula soa se a cor cobre ao menos a cobertura mínima da sua área (ou, com «largura do traço», da sua largura). Na mesma coluna, as faixas pintadas soam juntas (acorde); o mesmo acorde na coluna seguinte continua a nota (ligadura); colunas vazias são pausas. Alta precisão: a grade do tempo vira 1/32 ou 1/64 para todas as cores e cada faixa de linhas do desenho vira uma altura, entre a nota mais grave e a mais aguda da cor (as notas da cor, se bastarem, ou ½, ¼, ⅛ de tom) — a partitura fica com a forma do desenho. Saídas separadas: alturas (os acordes) e ritmo (a árvore rítmica do OM, com os compassos) — ligadas a uma voice refazem a voz; com várias cores, a voz k é a k-ésima cor do desenho (entrada «qual voz» da voice). «acordes» junta todas as cores, com os tempos, e toca direto na Partitura. Ferramentas: lápis, pincel (espessura), linha, retângulo, retângulo cheio, borracha, conta-gotas, desfazer/refazer e limpar; e, como no jspaint, seleção retangular e seleção livre (laço): recortar, copiar, colar (flutua até ser fixado com um clique fora ou Enter; Esc desiste; transparente ou opaco), excluir, selecionar tudo, duplicar (a cópia um compasso à direita) e arrastar para mover, encaixando na grade da cor (passos de tempo e de nota). Transformações da seleção, ou do desenho todo: virar na horizontal = retrógrado, virar na vertical = inversão (as alturas espelhadas na escala da cor), girar 180° = retrógrado da inversão, esticar ↔ = aumentação (×2) ou diminuição (×½), ↕ = âmbito maior ou menor. A área de transferência guarda as cores e vale entre as caixas Pintura do patch. Atalhos com o foco no desenho: Ctrl/⌘+X C V A D Z Y, Delete, Esc, Enter, setas. Funciona com mouse, caneta e dedo.',
+    desc: 'Um paint para gerar partituras (inspirado no jspaint): desenhe na caixa — o tempo corre da esquerda para a direita ao longo dos compassos, a altura sobe de baixo para cima. Cada cor da paleta é uma camada independente, com a sua linha de parâmetros (aberta ao escolher a cor; × a tira): as alturas, escritas («notas») ou geradas por uma escala (tônica, tipo — maior, menores, modos, pentatônicas, blues, tons inteiros, octatônicas, aumentada, cromática em ½, ¼ ou ⅛ de tom — e âmbito: nota grave até nota aguda ou n oitavas), a quantização e uma entrada de cabo própria (notas que substituem as da linha). Para cada cor o desenho é quantizado numa grade: colunas = passos da quantização (1/8, tercinas 1/12, quintinas 1/20…), linhas = as notas da cor (a altura dividida em faixas, a mais grave embaixo); uma célula soa se a cor cobre ao menos a cobertura mínima da sua área (ou, com «largura do traço», da sua largura). Na mesma coluna, as faixas pintadas soam juntas (acorde); o mesmo acorde na coluna seguinte continua a nota (ligadura); colunas vazias são pausas. Alta precisão: a grade do tempo vira 1/32 ou 1/64 para todas as cores e cada faixa de linhas do desenho vira uma altura, entre a nota mais grave e a mais aguda da cor (as notas da cor, se bastarem, ou ½, ¼, ⅛ de tom) — a partitura fica com a forma do desenho. Saídas separadas: alturas (os acordes) e ritmo (a árvore rítmica do OM, com os compassos) — ligadas a uma voice refazem a voz; com várias cores, a voz k é a k-ésima cor do desenho (entrada «qual voz» da voice). «acordes» junta todas as cores, com os tempos, e toca direto na Partitura. Ferramentas: lápis, pincel (espessura), linha, retângulo, retângulo cheio, borracha, conta-gotas, desfazer/refazer e limpar; e, como no jspaint, seleção retangular e seleção livre (laço): recortar, copiar, colar (flutua até ser fixado com um clique fora ou Enter; Esc desiste; transparente ou opaco), excluir, selecionar tudo, duplicar (a cópia um compasso à direita) e arrastar para mover, encaixando na grade da cor (passos de tempo e de nota). Transformações da seleção, ou do desenho todo: virar na horizontal = retrógrado, virar na vertical = inversão (as alturas espelhadas na escala da cor), girar 180° = retrógrado da inversão, esticar ↔ = aumentação (×2) ou diminuição (×½), ↕ = âmbito maior ou menor. A área de transferência guarda as cores e vale entre as caixas Pintura do patch. «⤢ abrir em janela» (ou dois toques no desenho) abre o editor numa janela grande, com zoom (ajustar, 1×, 2×, 4×) e alças (direita, embaixo, canto) para dar ao desenho o tamanho que for preciso, até 2048 × 512 pixels, ou escrever largura × altura. Ao redimensionar: «manter» deixa os pixels no lugar (presos embaixo à esquerda; as cores com escala ganham notas no agudo, para cada pixel continuar na mesma altura) e «esticar» estica o desenho junto; com «acrescentar compassos ao alargar» (ligado), a largura acrescenta ou tira compassos no fim com os mesmos pixels por compasso — mais espaço em «manter», aumentação em «esticar»; desligado, o desenho ocupa sempre os compassos dados e a largura só muda a resolução do tempo. «esticar / comprimir…» muda em % a seleção ou o desenho todo. Atalhos com o foco no desenho: Ctrl/⌘+X C V A D Z Y, Delete, Esc, Enter, setas. Funciona com mouse, caneta e dedo.',
     ins: [I('compassos', 'compassos', 'text', '4 × 4/4', { ph: '4/4 4/4 3/4 · 4 × 4/4 · ((4 4) (3 4))' }), I('tempo', 'andamento ♩ =', 'num', 72),
       I('precisao', 'precisão', 'sel', 'normal', { opts: [['normal', 'normal (a quantização de cada cor)'], ['32', 'alta (1/32, uma altura por faixa)'], ['64', 'alta (1/64, uma altura por faixa)']] }),
       I('altas', 'alturas na alta precisão', 'sel', 'auto', { opts: [['auto', 'as da cor, se bastarem; senão ½ tom'], ['notas', 'sempre as notas da cor'], ['2', 'grade de ½ tom'], ['4', 'grade de ¼ de tom'], ['8', 'grade de ⅛ de tom']] }),
@@ -23667,11 +23850,11 @@ Object.assign(DEFS, {
       I('saida', 'alturas e ritmo de', 'sel', 'todas', { opts: [['todas', 'todas (voz k = k-ª cor)'], ...PINTURA.CORES.map((c) => [c.id, `só ${c.id}`])] }),
       ...PINTURA.CORES.map((c) => I(`c_${c.id}`, `notas da cor ${c.id} (cabo, opc.)`, 'in')),
       I('escalas', 'escalas por cor (antigo: acorde k → k-ª cor)', 'in'),
-      I('desenho', 'desenho', 'hidden', ''), I('cores', 'cores', 'hidden', ''), I('cor', 'cor escolhida', 'hidden', 'azul'), I('ferr', 'ferramenta', 'hidden', 'pincel'), I('esp', 'espessura', 'hidden', '8'), I('colarModo', 'modo de colar', 'hidden', 'transp'), I('encaixe', 'encaixar na grade', 'hidden', '1')],
+      I('desenho', 'desenho', 'hidden', ''), I('cores', 'cores', 'hidden', ''), I('cor', 'cor escolhida', 'hidden', 'azul'), I('ferr', 'ferramenta', 'hidden', 'pincel'), I('esp', 'espessura', 'hidden', '8'), I('colarModo', 'modo de colar', 'hidden', 'transp'), I('encaixe', 'encaixar na grade', 'hidden', '1'), I('redim', 'ao redimensionar', 'hidden', 'manter'), I('acresc', 'acrescentar compassos ao alargar', 'hidden', '1')],
     outs: [{ id: 'alturas', label: 'alturas', t: 'chords' }, { id: 'ritmo', label: 'ritmo (árvore do OM)', t: 'any' }, { id: 'r', label: 'ritmo (proporções)', t: 'num' },
       { id: 'dur', label: 'durações (ms)', t: 'num' }, { id: 'out', label: 'acordes (todas as cores)', t: 'chords' }],
     help: {
-      app: 'O desenho tem duas cores em quatro compassos de 4/4, cada uma com a sua linha de parâmetros. Azul: a melodia, com a escala de dó maior de C4 a G5 (12 alturas) quantizada em colcheias — blocos curtos, um acorde de duas notas no segundo compasso e um glissando traçado com a linha no último. Vermelho: o baixo, com a pentatônica menor de lá de A1 a C3 (7 alturas) em semínimas, desenhado com o retângulo cheio. As saídas alturas e ritmo entram em duas voice (qual voz = 1, a azul; 2, a vermelha), que refazem as vozes com compassos na Partitura de cima (A ‖ B); «acordes» junta as duas cores na Partitura de baixo. Experimente: no vermelho, quantização 1/6 (tercinas) ou escala blues; escolher o verde na paleta (aparece a linha dele) e desenhar; precisão = alta (1/64): o desenho passa a 448 × 224 e a Partitura de baixo mostra a forma do desenho — os blocos viram notas longas e o glissando, uma escada. Para variar a melodia: ferramenta seleção, arraste sobre o primeiro compasso, «duplicar» e «⇆ retrógrado» antes de fixar (clique fora): o compasso seguinte ganha o retrógrado; «⇅ inversão» espelha as alturas.',
+      app: 'O desenho tem duas cores em quatro compassos de 4/4, cada uma com a sua linha de parâmetros. Azul: a melodia, com a escala de dó maior de C4 a G5 (12 alturas) quantizada em colcheias — blocos curtos, um acorde de duas notas no segundo compasso e um glissando traçado com a linha no último. Vermelho: o baixo, com a pentatônica menor de lá de A1 a C3 (7 alturas) em semínimas, desenhado com o retângulo cheio. As saídas alturas e ritmo entram em duas voice (qual voz = 1, a azul; 2, a vermelha), que refazem as vozes com compassos na Partitura de cima (A ‖ B); «acordes» junta as duas cores na Partitura de baixo. Experimente: no vermelho, quantização 1/6 (tercinas) ou escala blues; escolher o verde na paleta (aparece a linha dele) e desenhar; precisão = alta (1/64): o desenho passa a 448 × 224 e a Partitura de baixo mostra a forma do desenho — os blocos viram notas longas e o glissando, uma escada. Para variar a melodia: ferramenta seleção, arraste sobre o primeiro compasso, «duplicar» e «⇆ retrógrado» antes de fixar (clique fora): o compasso seguinte ganha o retrógrado; «⇅ inversão» espelha as alturas. Para mais espaço: «⤢ abrir em janela» e arraste a alça da direita — em «manter», cada 56 pixels a mais é um compasso novo, vazio.',
       patch: () => ({ nodes: [
         { id: 'h1', type: 'pintura', x: 560, y: 40, params: { compassos: '4 × 4/4', tempo: 72, tam: '224x112', desenho: ptExemplo(), cor: 'azul', ferr: 'pincel', esp: '8',
           cores: JSON.stringify({ azul: { modo: 'escala', notas: 'C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5', tonica: 'C', escala: 'maior', grave: 'C4', ate: 'G5', q: '1/8' },
@@ -25688,7 +25871,7 @@ function dlgHelp() {
       h('li', { html: '<b>Transcrever áudio:</b> Arquivo → Transcrever áudio (notas)… cria o objeto <i>transcrever áudio</i>, que usa a rede neural Basic Pitch (Spotify, código aberto) para tirar de uma gravação as notas tocadas, inclusive acordes, com início, duração e intensidade. É diferente do <i>importar áudio</i>, que devolve parciais do espectro: aqui saem notas, como num arquivo MIDI. Em <i>alturas</i> escolha o semitom ou o desvio microtonal medido (¼, ⅛ de tom ou cents); em <i>ritmo</i>, a grade quantiza no andamento informado. Tudo roda no próprio navegador; arquivos de até 5 minutos.' }),
       h('li', { html: '<b>Situation:</b> a biblioteca de restrições do IRCAM roda aqui com o seu código Lisp original, num interpretador de Common Lisp embutido. Os campos se escrevem como nas caixas do OpenMusic — <code>0_5 (60_72) 6_9 (48_60)</code>, <code>(0_7 (not (ints 12 t)))</code> — e os predicados de <i>user-cnstr</i> e <i>generic-cnstr</i>, em Lisp: <code>(lambda (a b) (/= (first a) (first b)))</code>. As restrições se ligam em <i>list</i> (ou umas nas outras) e daí em <i>cnstr</i> do <i>csolver</i>. Se a busca demorar, mude «calcular» para <i>só no botão</i>; quando o tempo acaba, sai a solução parcial. Veja Arquivo → Exemplos → Situation.' }),
       h('li', { html: '<b>Magenta:</b> os objetos <i>Continue</i> e <i>Continue (bateria)</i> prolongam uma melodia ou uma batida com as redes MelodyRNN e DrumsRNN do Google (as do Magenta Studio). Os modelos (13 e 12 MB) não vão dentro da página: no site, vêm da pasta <code>magenta/</code> ao lado do <code>index.html</code>; aberto de outro jeito, solte o <code>melody_rnn.zip</code> ou o <code>drum_kit_rnn.zip</code> no objeto uma vez (fica guardado no navegador; no Live, na pasta da extensão).' }),
-      h('li', { html: '<b>Pintura:</b> em Gerar → Fontes, um paint (inspirado no jspaint) que gera partituras: desenhe na caixa com lápis, pincel, linha, retângulo, retângulo cheio, borracha e conta-gotas (mouse, caneta ou dedo; ↶ ↷ desfazem e refazem). O tempo corre para a direita ao longo dos <i>compassos</i> (<code>4 × 4/4</code>, <code>4/4 3/4</code> ou <code>((4 4) (3 4))</code>), a altura sobe. Cada cor é independente: escolhê-la na paleta abre a sua linha, com as alturas (notas escritas ou uma <i>escala</i> — tônica, tipo, nota grave e aguda —, inclusive cromáticas em ¼ e ⅛ de tom), a quantização (1/8, tercinas 1/12, quintinas 1/20…) e uma entrada de cabo própria; × tira a cor. Em <i>precisão = alta</i> (1/32 ou 1/64) cada faixa de linhas do desenho vira uma altura e a Partitura mostra as notas no tempo exato: o desenho aparece na partitura. Como no jspaint, <i>seleção</i> e <i>seleção livre</i> recortam, copiam, colam (o pedaço flutua até um clique fora ou Enter; Esc desiste), duplicam um compasso à direita e movem, encaixando na grade; virar na horizontal é o retrógrado, na vertical a inversão, esticar é aumentação ou diminuição; o que se copia guarda as cores e cola em outra caixa Pintura. As saídas separam <i>alturas</i> e <i>ritmo</i> (a árvore do OM): ligadas a uma <i>voice</i>, refazem a voz (com várias cores, «qual voz» escolhe a cor); <i>acordes</i> junta todas as cores para a Partitura.' }),
+      h('li', { html: '<b>Pintura:</b> em Gerar → Fontes, um paint (inspirado no jspaint) que gera partituras: desenhe na caixa com lápis, pincel, linha, retângulo, retângulo cheio, borracha e conta-gotas (mouse, caneta ou dedo; ↶ ↷ desfazem e refazem). O tempo corre para a direita ao longo dos <i>compassos</i> (<code>4 × 4/4</code>, <code>4/4 3/4</code> ou <code>((4 4) (3 4))</code>), a altura sobe. Cada cor é independente: escolhê-la na paleta abre a sua linha, com as alturas (notas escritas ou uma <i>escala</i> — tônica, tipo, nota grave e aguda —, inclusive cromáticas em ¼ e ⅛ de tom), a quantização (1/8, tercinas 1/12, quintinas 1/20…) e uma entrada de cabo própria; × tira a cor. Em <i>precisão = alta</i> (1/32 ou 1/64) cada faixa de linhas do desenho vira uma altura e a Partitura mostra as notas no tempo exato: o desenho aparece na partitura. Como no jspaint, <i>seleção</i> e <i>seleção livre</i> recortam, copiam, colam (o pedaço flutua até um clique fora ou Enter; Esc desiste), duplicam um compasso à direita e movem, encaixando na grade; virar na horizontal é o retrógrado, na vertical a inversão, esticar é aumentação ou diminuição; o que se copia guarda as cores e cola em outra caixa Pintura. «⤢ abrir em janela» (ou dois toques no desenho) abre o editor grande, com zoom e alças para dar ao desenho o tamanho que precisar (até 2048 × 512): «manter» deixa o desenho no lugar e, com «acrescentar compassos», ganha compassos novos; «esticar» estica junto (aumentação); «esticar / comprimir…» muda em %. As saídas separam <i>alturas</i> e <i>ritmo</i> (a árvore do OM): ligadas a uma <i>voice</i>, refazem a voz (com várias cores, «qual voz» escolhe a cor); <i>acordes</i> junta todas as cores para a Partitura.' }),
       h('li', { html: '<b>MIDI ao vivo:</b> <i>entrada MIDI</i> (Gerar → Fontes) grava o que você toca num teclado, com tempo de gravação e apagar; <i>saída MIDI</i> (Visualizar) manda um fluxo para uma porta MIDI, uma vez ou em laço. Usam o Web MIDI do navegador (Chrome, Edge, Firefox), que pede permissão na primeira vez.' }),
       h('li', { html: '<b>Ajustar notas e PDF:</b> na <i>Partitura</i>, clique num acorde (ou numa cabeça de nota) e use ↑ ↓ para subir ou descer um passo da aproximação escolhida (semitom, ¼ ou ⅛ de tom); os ajustes saem pelas saídas do objeto. «↓ PDF» salva a partitura num arquivo PDF, em folhas A4.' }),
       h('li', { html: '<b>RQ (quantificação rítmica):</b> em Bibliotecas → RQ, o objeto <i>rq</i> transforma uma sequência com tempos em ms (MIDI importado, áudio transcrito, física…) numa voz com compassos. As marcas cortam a sequência em segmentos; para cada um a biblioteca original do OpenMusic lista as melhores transcrições e você escolhe clicando. Roda o código Lisp original (IRCAM, GPL v3).' }),
