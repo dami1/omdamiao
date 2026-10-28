@@ -66,6 +66,17 @@ button, input, select, textarea { font: inherit; color: var(--ink); }
   .mobile-toggle { display: flex !important; justify-content: center; width: 52px; border-right: var(--frame) !important; }
   .mobile-title { display: flex !important; flex: 1 !important; min-width: 0; letter-spacing: 1px; text-transform: uppercase; }
 }
+/* barra compacta também quando os menus não cabem na largura (iPad em pé, janela estreita): fitMenubar() põe a classe */
+#app.compact .menubar .desk-menu, #app.compact .menubar .brand-cell, #app.compact .menubar .spacer, #app.compact .menubar #stat { display: none !important; }
+#app.compact .mobile-toggle { display: flex !important; justify-content: center; width: 52px; border-right: var(--frame) !important; }
+#app.compact .mobile-title { display: flex !important; flex: 1 !important; min-width: 0; letter-spacing: 1px; text-transform: uppercase; }
+.mobile-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+@media (max-width: 440px) { .mobile-title { visibility: hidden; padding: 0 !important; } }
+/* recado curto (o status da barra) quando a barra está compacta: aparece embaixo e some */
+.flash-pill { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 9700; max-width: calc(100vw - 32px); padding: 6px 14px; background: var(--paper); color: var(--ink); border: var(--frame); box-shadow: 4px 4px 0 var(--shadow); pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* toque: ligar tocando a saída e depois a entrada; desconectar tocando o cabo e confirmando */
+.gport.armed { background: var(--ink); box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--line); }
+.cable-del { position: absolute; z-index: 8500; transform: translate(-50%, calc(-100% - 14px)); white-space: nowrap; box-shadow: 4px 4px 0 var(--shadow); }
 
 /* abas de patches (como no plugdata) */
 .tabbar { flex: none; display: flex; align-items: stretch; background: var(--desk); border-bottom: var(--frame); min-height: 30px; overflow-x: auto; overflow-y: hidden; user-select: none; -webkit-user-select: none; scrollbar-width: thin; }
@@ -222,6 +233,53 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .quick li.on, .quick li:hover { background: var(--ink); color: var(--paper); }
 #minimap { position: fixed; right: 16px; bottom: 16px; z-index: 6000; background: var(--paper); border: var(--frame); box-shadow: 4px 4px 0 var(--shadow); cursor: pointer; }
 @media (max-width: 640px) { #minimap { display: none; } }
+
+/* ─────────── tela de toque (iPad, celular): só onde o ponteiro principal é o dedo; com mouse nada muda ─────────── */
+@media (pointer: coarse) {
+  html, body { touch-action: manipulation; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+  #app { min-height: 0; }
+  /* sem lupa, menu de copiar nem seleção de texto ao segurar o dedo nas janelas e barras (os campos continuam selecionáveis) */
+  .gwin, .menubar, .tabbar, .gem-menu, .desk-panel, .quick, #minimap, .dlg .gwin-bar { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .gwin input, .gwin textarea, .gwin select, .quick input, .dlg input, .dlg textarea, .dlg .note, .dlg-body p { -webkit-touch-callout: default; -webkit-user-select: text; user-select: text; }
+  .gwin input[type=range] { touch-action: none; }
+  /* o iOS aproxima a página ao focar campos com letra menor que 16 px */
+  .gwin input:not([type=range]):not([type=checkbox]):not([type=radio]), .gwin select, .gwin textarea, .quick input, .dlg input, .dlg textarea, .dlg select { font-size: max(16px, var(--fs)) !important; }
+  .prow input[type=text], .prow input[type=number], .prow select, .gwin input[type=number] { min-height: 32px; }
+  /* alvos maiores: barra de menus, abas, botões das janelas, botões, itens de menu */
+  .menubar { min-height: 44px; }
+  .menubar > button { padding: 6px 14px; }
+  .tabbar { min-height: 40px; }
+  .tabbar .tx { padding: 8px 12px; }
+  .tabbar .tplus { padding: 0 18px; }
+  .gwin-bar { gap: 8px; padding: 5px 6px; }
+  .gbtn { position: relative; width: 28px; height: 28px; font-size: calc(var(--fs) * 18 / 18); }
+  .gbtn::after { content: ""; position: absolute; inset: -6px -4px; }
+  .gb { min-height: 36px; padding: 4px 12px; }
+  .gem-menu .opt { padding: 10px 16px; min-height: 44px; }
+  .desk-panel .sec > button.head { padding: 13px 16px; }
+  .desk-panel .opt { padding: 11px 16px 11px 26px; }
+  .quick li { padding: 10px 12px; }
+  /* portas: a área de toque passa do quadradinho (invisível; 42 × 30 px, sem invadir a porta de cima ou de baixo) */
+  .gport::after { content: ""; position: absolute; inset: -8px -14px; }
+  .gport.rc::after { inset: -10px; }
+  #cables .hit { stroke-width: 26; }
+  /* no toque o :hover fica preso depois do toque: vale só o :active */
+  .gb:hover { background: var(--paper); color: var(--ink); }
+  .gb:active, .gb[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .menubar > button:hover:not(.open):not(:focus-visible):not([aria-pressed="true"]) { background: none; color: var(--ink); }
+  .menubar > button:hover:not(.open) .brandmark rect { fill: var(--ink); }
+  .menubar > button:active { background: var(--ink); color: var(--paper); }
+  .tabbar .tplus:hover { background: var(--paper); color: var(--ink); }
+  .gem-menu .opt:hover:not(.cur):not(:focus-visible) { background: none; color: var(--ink); }
+  .gem-menu .opt:active { background: var(--ink); color: var(--paper); }
+  .quick li:hover:not(.on) { background: none; color: var(--ink); }
+  #cables .cable:hover { stroke-width: 2; }
+  #cables .cable.hot { stroke-width: 5; }
+  /* janelas largas não passam da tela do celular */
+  .gwin.wide { max-width: calc(100vw - 56px); }
+}
+/* celular deitado: o minimapa tomaria metade da altura */
+@media (pointer: coarse) and (max-height: 520px) { #minimap { display: none; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -23992,6 +24050,10 @@ let focused = null;
 /** a seleção de vários objetos (retângulo na mesa, ⇧/⌘ + clique na barra, Ctrl/⌘ A); `focused` é a janela da vez */
 const selected = new Set();
 let selMode = false;   // modo seleção (para o toque): arrastar na mesa seleciona em vez de rolar
+// tela de toque: o cabo tocado à espera de «✕ desconectar», a saída tocada à espera de uma entrada, o último toque longo
+let cableDel = null, wireArm = null, holdFired = null;
+/** celular (tela pequena de toque): o teclado «decimal» do iPhone não tem o sinal de menos */
+const PHONE = (() => { try { return matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600; } catch { return false; } })();
 
 function addNode(type, x, y, params = {}, id = null, extra = {}) {
   const def = DEFS[type]?.dyn ? DEFS[type].dyn(params || {}) : DEFS[type];
@@ -24030,7 +24092,7 @@ function buildNode(n, attach = true) {
     if (p.t === 'in' || p.t === 'rc' || p.t === 'any') field = h('span', { class: 'sum', id: fid, text: 'desconectado' });
     else if (p.t === 'sel') { field = h('select', { id: fid }); p.opts.forEach(([v, t]) => field.append(h('option', { value: v, text: t }))); field.value = n.params[p.id]; }
     else if (p.t === 'area') { row.style.gridTemplateColumns = '1fr'; row.querySelector('label').hidden = true; field = h('textarea', { id: fid, class: 'src-area', spellcheck: 'false' }); field.value = n.params[p.id]; if (p.rows) { field.style.minHeight = `${p.rows * 1.45}em`; field.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace'; field.style.fontSize = '13px'; field.style.lineHeight = '1.45'; field.setAttribute('wrap', 'off'); field.addEventListener('keydown', (e) => { if (e.key === 'Tab') { e.preventDefault(); field.setRangeText('  ', field.selectionStart, field.selectionEnd, 'end'); field.dispatchEvent(new Event('input')); } }); } }
-    else { field = h('input', { id: fid, type: 'text', inputmode: p.t === 'num' ? 'decimal' : null, autocomplete: 'off', spellcheck: 'false', placeholder: p.ph || null }); field.value = n.params[p.id]; }
+    else { field = h('input', { id: fid, type: 'text', inputmode: p.t === 'num' && !PHONE ? 'decimal' : null, autocomplete: 'off', spellcheck: 'false', placeholder: p.ph || null }); field.value = n.params[p.id]; }
     if (field.tagName !== 'SPAN') {
       const upd = () => { n.params[p.id] = field.value; schedule(); };
       field.addEventListener(field.tagName === 'SELECT' ? 'change' : 'input', upd);
@@ -24179,7 +24241,7 @@ function buildNode(n, attach = true) {
   }, true);
   win.querySelector('[data-act=close]').addEventListener('click', () => deleteNodes([n]));
   win.querySelector('[data-act=help]')?.addEventListener('click', () => openHelp(n.type));
-  win.addEventListener('contextmenu', (e) => { if (e.target.closest('input, textarea, select')) return; e.preventDefault(); focusNode(n); nodeMenu(n, e.clientX, e.clientY); });
+  win.addEventListener('contextmenu', (e) => { if (e.target.closest('input, textarea, select')) return; e.preventDefault(); if (holdFired != null || e.pointerType === 'touch') return; focusNode(n); nodeMenu(n, e.clientX, e.clientY); });
   win.querySelector('[data-act=shade]').addEventListener('click', () => { n.shaded = !n.shaded; win.classList.toggle('shaded', n.shaded); drawCables(); save(); });
   if (attach) content.append(win);
 }
@@ -24730,16 +24792,29 @@ function drawCables() {
     if (!a || !b) return;
     const d = pathD(portCenter(a), portCenter(b));
     const num = a.classList.contains('num'), rcc = a.classList.contains('rc'), bpc = a.classList.contains('bpf');
-    parts.push(`<path class="hit" data-c="${i}" d="${d}"><title>Clique para desconectar</title></path><path class="cable${num ? ' num' : ''}${rcc ? ' rc' : ''}${bpc ? ' bpf' : ''}" data-c="${i}" d="${d}"/>`);
+    const hot = cableDel && cableDel.c === c ? ' hot' : '';
+    parts.push(`<path class="hit" data-c="${i}" d="${d}"><title>Clique para desconectar</title></path><path class="cable${num ? ' num' : ''}${rcc ? ' rc' : ''}${bpc ? ' bpf' : ''}${hot}" data-c="${i}" d="${d}"/>`);
   });
   cablesSvg.innerHTML = parts.join('') + (rubber ? `<path class="rubber" d="${rubber}"/>` : '');
   drawMinimap();
 }
+// clique no cabo desconecta; com o dedo, o toque só marca o cabo e mostra «✕ desconectar» (um toque à toa não apaga nada)
+let cableTap = 'mouse';
+cablesSvg.addEventListener('pointerdown', (e) => { cableTap = e.pointerType; });
 cablesSvg.addEventListener('click', (e) => {
   const p = e.target.closest('path[data-c]'); if (!p) return;
+  if (cableTap === 'touch') { askCableDel(graph.cables[Number(p.dataset.c)], e); return; }
   graph.cables.splice(Number(p.dataset.c), 1);
   evaluate(); drawCables(); save();
 });
+function closeCableDel() { if (!cableDel) return; cableDel.btn.remove(); cableDel = null; drawCables(); }
+function askCableDel(c, e) {
+  closeCableDel(); if (!c) return;
+  const [x, y] = toContent(e.clientX, e.clientY);
+  const btn = h('button', { class: 'gb def cable-del', type: 'button', text: '✕ desconectar', style: `left:${x * zoom}px;top:${y * zoom}px` });
+  btn.addEventListener('click', () => { const i = graph.cables.indexOf(c); closeCableDel(); if (i >= 0) { graph.cables.splice(i, 1); evaluate(); drawCables(); save(); } });
+  canvas.append(btn); cableDel = { c, btn }; drawCables();
+}
 
 // ─────────── arrastar janelas e cabos ───────────
 let rubber = null;
@@ -24776,7 +24851,8 @@ function dragWindow(e, n) {
   el.setPointerCapture(e.pointerId);
   let moved = false;
   const mv = (ev) => {
-    if (!moved) { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 3) return; moved = true; pushUndo(); }
+    if (holdFired === ev.pointerId) return;   // o dedo parado abriu o menu do objeto: não arrasta mais
+    if (!moved) { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < (ev.pointerType === 'mouse' ? 3 : 6)) return; moved = true; pushUndo(); }
     const dx = Math.max(-minX, (ev.clientX - sx) / zoom), dy = Math.max(-minY, (ev.clientY - sy) / zoom);
     orig.forEach(([m, ox, oy]) => { m.x = ox + dx; m.y = oy + dy; m.el.style.left = m.x + 'px'; m.el.style.top = m.y + 'px'; });
     drawCables();
@@ -24816,23 +24892,49 @@ function bandSelect(e) {
 }
 function dragCable(e, from, srcEl) {
   e.preventDefault();
+  disarm();
   const el = e.target;
   el.setPointerCapture(e.pointerId);
   const start = portCenter(srcEl);
-  document.querySelectorAll('.gport.in').forEach((p) => { if (p.dataset.node !== from.n && !reaches(p.dataset.node, from.n)) p.classList.add('target'); });
+  markTargets(from);
   const at = (ev) => toContent(ev.clientX, ev.clientY);
-  const mv = (ev) => { rubber = pathD(start, at(ev)); drawCables(); autoscroll(ev); };
+  // com o dedo, o cabo só sai depois de 8 px (o dedo treme); um toque sem arrastar arma a ligação por dois toques
+  const touch = e.pointerType !== 'mouse', sx = e.clientX, sy = e.clientY;
+  let moved = !touch;
+  const mv = (ev) => { if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 8) return; moved = true; rubber = pathD(start, at(ev)); drawCables(); autoscroll(ev); };
   const up = (ev) => {
     el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
     rubber = null;
     document.querySelectorAll('.gport.target').forEach((p) => p.classList.remove('target'));
-    const hit = document.elementFromPoint(ev.clientX, ev.clientY);
+    const hit = ev.type === 'pointerup' && document.elementFromPoint(ev.clientX, ev.clientY);
     const inp = hit && (hit.closest('.gport.in') || nearestInlet(hit, ev));
     if (inp) connect(from, { n: inp.dataset.node, p: inp.dataset.port });
+    else if (touch && !moved && ev.type === 'pointerup' && srcEl) { drawCables(); save(); armConnect(from, srcEl); }
     else { drawCables(); save(); }
   };
   el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
 }
+/** as entradas que podem receber o cabo (não a do próprio objeto, nem as que fechariam um ciclo) */
+function markTargets(from) { document.querySelectorAll('.gport.in').forEach((p) => { if (p.dataset.node !== from.n && !reaches(p.dataset.node, from.n)) p.classList.add('target'); }); }
+/** ligar por dois toques: a saída tocada fica marcada; o próximo toque numa entrada (ou na linha dela) liga, qualquer outro desiste */
+function armConnect(from, el) {
+  disarm(); wireArm = { from, el }; el.classList.add('armed'); markTargets(from);
+  flash('toque numa entrada para ligar');
+}
+function disarm() {
+  if (!wireArm) return;
+  wireArm.el.classList.remove('armed'); wireArm = null;
+  document.querySelectorAll('.gport.target').forEach((p) => p.classList.remove('target'));
+}
+document.addEventListener('pointerdown', (e) => {
+  if (cableDel && !e.target.closest?.('.cable-del')) closeCableDel();
+  if (!wireArm) return;
+  const t = e.target, from = wireArm.from, src = wireArm.el;
+  const inp = t.closest?.('.gport.in') || (t.closest?.('.gwin') && nearestInlet(t, e));
+  if (inp && inp.dataset.node !== from.n) { e.preventDefault(); e.stopPropagation(); disarm(); connect(from, { n: inp.dataset.node, p: inp.dataset.port }); return; }
+  if (t.closest?.('.gport.outp') === src) { e.preventDefault(); e.stopPropagation(); disarm(); flash('ligação cancelada'); return; }
+  disarm();
+}, true);
 /** soltar sobre a linha de um parâmetro também conecta à sua porta */
 function nearestInlet(hit, ev) {
   const row = hit.closest('.prow.port-row');
@@ -24872,8 +24974,10 @@ function openQuick(x, y) {
   render(); inp.focus();
 }
 function closeQuick() { if (quick) { quick.remove(); quick = null; } }
+let lastPtr = 'mouse';
+document.addEventListener('pointerdown', (e) => { lastPtr = e.pointerType; }, true);
 canvas.addEventListener('dblclick', (e) => {
-  if (!isDesk(e.target)) return;
+  if (!isDesk(e.target) || lastPtr === 'touch') return;
   const [x, y] = toContent(e.clientX, e.clientY);
   openQuick(Math.round(x), Math.round(y));
 });
@@ -24910,26 +25014,54 @@ document.addEventListener('keydown', (e) => {
 });
 canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') { lastPt.x = e.clientX; lastPt.y = e.clientY; lastPt.on = true; } });
 desktop.addEventListener('pointerleave', () => { lastPt.on = false; });
-// toque: dois toques rápidos sobre um objeto (fora dos campos, botões, portas e gráficos) abrem o menu dele (ajuda, duplicar…)
+// toque: dois toques rápidos ou o dedo parado ~½ s sobre um objeto (fora dos campos, botões, portas e gráficos) abrem o menu
+// dele (ajuda, copiar, duplicar, apagar…); na mesa vazia, os mesmos gestos abrem o «criar objeto» ali
 {
-  let down = null, lastTap = null;
+  const NOT_HERE = 'input, textarea, select, button, a, .gport, .extview, .staffbox, .rclanes, .tonnetz, .lattice, .neck, .spec, .tbl, .gslider, canvas';
+  let down = null, lastTap = null, hold = 0;
+  const eatClick = () => { const eat = (ev) => { ev.stopPropagation(); ev.preventDefault(); }; document.addEventListener('click', eat, { capture: true, once: true }); setTimeout(() => document.removeEventListener('click', eat, true), 450); };
+  /** onde o gesto vale: a janela (pelo corpo ou pela barra) ou a mesa vazia; null fora disso */
+  const spot = (t) => {
+    if (!t || !t.closest) return null;
+    if (isDesk(t)) return selMode ? null : { desk: true };
+    const win = t.closest('.gwin');
+    if (!win || !graph.nodes.has(win.id) || t.closest(NOT_HERE)) return null;
+    return { win };
+  };
+  const stopHold = () => { clearTimeout(hold); hold = 0; };
+  const fire = (sp, x, y) => {
+    eatClick();
+    if (sp.desk) { const [cx, cy] = toContent(x, y); openQuick(Math.round(cx), Math.round(cy)); return; }
+    const n = graph.nodes.get(sp.win.id); focusNode(n); nodeMenu(n, x, y);
+  };
   document.addEventListener('pointerdown', (e) => {
     // clicar numa janela fora dos campos tira o cursor do campo de texto, para os atalhos valerem para o objeto
     const ae = document.activeElement; if (ae && /INPUT|TEXTAREA/.test(ae.tagName) && ae.closest('.gwin') && !e.target.closest('input, textarea, select')) ae.blur();
-    down = e.pointerType === 'mouse' ? null : { x: e.clientX, y: e.clientY, t: performance.now() };
+    stopHold();
+    if (e.pointerType === 'mouse') { down = null; return; }
+    if (down && down.id !== e.pointerId) { down = null; lastTap = null; return; }   // segundo dedo (pinça): nada de gesto
+    down = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+    const sp = e.pointerType === 'touch' && spot(e.target);
+    if (sp) hold = setTimeout(() => { hold = 0; if (!down || down.id !== e.pointerId) return; holdFired = e.pointerId; lastTap = null; down = null; fire(sp, e.clientX, e.clientY); }, 520);
   }, true);
+  document.addEventListener('pointermove', (e) => {
+    if (down && e.pointerId === down.id && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 9) stopHold();
+  }, true);
+  document.addEventListener('pointercancel', (e) => { if (down && e.pointerId === down.id) { stopHold(); down = null; } }, true);
   document.addEventListener('pointerup', (e) => {
-    if (e.pointerType === 'mouse' || !down) return;
+    stopHold();
+    if (holdFired === e.pointerId) { setTimeout(() => { holdFired = null; }, 0); return; }
+    if (e.pointerType === 'mouse' || !down || down.id !== e.pointerId) { down = null; return; }
     const now = performance.now(), tap = Math.hypot(e.clientX - down.x, e.clientY - down.y) < 12 && now - down.t < 350; down = null;
-    const win = tap && e.target.closest?.('.gwin');
-    if (!win || !graph.nodes.has(win.id) || e.target.closest('input, textarea, select, button, .gport, .extview, .staffbox, .rclanes, .tonnetz, .lattice, .neck, .spec, .tbl, .gslider')) { lastTap = null; return; }
-    if (lastTap && lastTap.id === win.id && now - lastTap.t < 420 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40) {
+    const sp = tap && spot(e.target);
+    if (!sp) { lastTap = null; return; }
+    const key = sp.desk ? 'mesa' : sp.win.id;
+    if (lastTap && lastTap.key === key && now - lastTap.t < 420 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40) {
       lastTap = null;
       // o menu abre sob o dedo: engole o clique deste toque, para ele não cair num item do menu
-      const eat = (ev) => { ev.stopPropagation(); ev.preventDefault(); }; document.addEventListener('click', eat, { capture: true, once: true }); setTimeout(() => document.removeEventListener('click', eat, true), 400);
-      const n = graph.nodes.get(win.id); focusNode(n); nodeMenu(n, e.clientX, e.clientY);
+      fire(sp, e.clientX, e.clientY);
     }
-    else lastTap = { id: win.id, t: now, x: e.clientX, y: e.clientY };
+    else lastTap = { key, t: now, x: e.clientX, y: e.clientY };
   }, true);
 }
 
@@ -24946,6 +25078,7 @@ function setZoom(z, anchor) {
   drawCables();
   desktop.scrollLeft = px * zoom - ax; desktop.scrollTop = py * zoom - ay;
   if (quick) closeQuick();
+  closeCableDel();
   $('zReset').textContent = `${Math.round(zoom * 100)}%`;
   clearTimeout(zSave); zSave = setTimeout(() => store.set('omtristan-zoom', String(zoom)), 250);
   drawMinimap();
@@ -25879,8 +26012,9 @@ function openDeskPanel() {
   const top = $('menubar').getBoundingClientRect().bottom;
   deskPanel = h('div', { class: 'desk-panel', role: 'menu', style: `top:${top}px;bottom:0` });
   MENU_ORDER.forEach((key, i) => {
-    const items = h('div', { class: 'items', hidden: i !== 0 });
-    const head = h('button', { class: 'head', type: 'button', 'aria-expanded': String(i === 0) }, h('span', { text: MENUS[key].label }), h('span', { text: '▾' }));
+    // as seções começam fechadas: todas as cabeças cabem na tela (o Arquivo aberto, com os exemplos, empurrava as outras para baixo)
+    const items = h('div', { class: 'items', hidden: true });
+    const head = h('button', { class: 'head', type: 'button', 'aria-expanded': 'false' }, h('span', { text: MENUS[key].label }), h('span', { text: '▾' }));
     onTap(head, () => {
       const open = items.hidden;
       deskPanel.querySelectorAll('.items').forEach((x) => (x.hidden = true));
@@ -25888,13 +26022,26 @@ function openDeskPanel() {
       items.hidden = !open; head.setAttribute('aria-expanded', String(open));
       if (open && !items.childElementCount) renderInline(MENUS[key].items(), items);
     });
-    if (i === 0) renderInline(MENUS[key].items(), items);
     deskPanel.append(h('div', { class: 'sec' }, head, items));
   });
   document.body.append(deskPanel);
   $('mMobile').setAttribute('aria-expanded', 'true');
 }
 $('mMobile').addEventListener('click', () => (deskPanel ? closeMenus() : openDeskPanel()));
+/** barra de menus na tela de toque: quando os menus e as ferramentas não cabem (iPad em pé ou deitado, letra grande), ela vira
+ *  a barra compacta do celular — o botão da marca abre o painel com todos os menus, e zoom, seleção, Novo e ■ continuam à mão.
+ *  Com mouse a barra fica como sempre (os menus suspensos do GEM). */
+const COARSE = (() => { try { return matchMedia('(pointer: coarse)'); } catch { return null; } })();
+function fitMenubar() {
+  const app = $('app'), mb = $('menubar'); if (!app || !mb) return;
+  const was = app.classList.contains('compact');
+  app.classList.remove('compact');
+  const over = !!COARSE?.matches && mb.scrollWidth > mb.clientWidth + 1;
+  app.classList.toggle('compact', over);
+  if (over !== was) closeMenus();
+}
+{ let fr = 0; window.addEventListener('resize', () => { cancelAnimationFrame(fr); fr = requestAnimationFrame(fitMenubar); }); }
+fitMenubar(); document.fonts?.ready?.then(fitMenubar); COARSE?.addEventListener?.('change', fitMenubar);
 $('mNew').addEventListener('click', () => openQuickCenter());
 $('mStop').addEventListener('click', stopAudio);
 
@@ -25959,7 +26106,15 @@ function deleteSel() { const k = deleteNodes(targets()); if (k > 1) flash(`apaga
 // ─────────── área de transferência ───────────
 const CLIP_FMT = 'omdamiao-objetos';
 let clip = null, clipN = 0, clipLastT = 0; const lastPt = { x: 0, y: 0, on: false };
-function flash(msg) { const el = $('stat'); if (el) { el.textContent = msg; el.title = msg; } }
+let flashT = 0;
+function flash(msg) {
+  const el = $('stat'); if (el) { el.textContent = msg; el.title = msg; }
+  // com a barra compacta o status não aparece: o recado sobe num balão embaixo e some
+  if (!el || el.getClientRects().length) return;
+  let p = document.querySelector('.flash-pill'); if (!p) p = document.body.appendChild(h('div', { class: 'flash-pill', role: 'status' }));
+  p.textContent = msg; p.hidden = false;
+  clearTimeout(flashT); flashT = setTimeout(() => { p.hidden = true; }, 1800);
+}
 /** os objetos (e os cabos entre eles) num documento que se cola em qualquer patch */
 function clipDoc(ns) {
   const ids = new Set(ns.map((n) => n.id));
@@ -26092,7 +26247,7 @@ function applyLook() {
   if (f === 'clear') root.setAttribute('data-font', 'clear'); else root.removeAttribute('data-font');
   root.style.setProperty('--fs', `${FS[f][opt.size] || FS[f].m}px`);
   graph.nodes.forEach(setDesc);
-  requestAnimationFrame(() => { drawCables(); drawMinimap(); });
+  requestAnimationFrame(() => { drawCables(); drawMinimap(); fitMenubar(); });
 }
 /** a descrição na janela: resumida (a primeira frase), completa ou nenhuma; a completa fica no título (passar o mouse) e na ajuda */
 function setDesc(n) {
@@ -26234,7 +26389,8 @@ function dlgHelp() {
       h('li', { html: '<b>Criar objetos:</b> pelos menus, pelo botão ＋, ou com duplo clique na mesa digitando o nome (setas + Enter). <b>Básico</b>: as peças de montar um patch (montar, aritmética, listas, controle, tabelas, ver e ouvir, subpatch, comentário) e as funções do OpenMusic (aritmética, listas, combinatória, séries, conjuntos, conversões). <b>Gerar</b>: o que cria material a partir de parâmetros (fontes, séries, Tonnetz, ritmo). <b>Processar</b>: o que transforma o que chega pelo cabo, por assunto (alturas, ritmo e tempo, partitura e curvas). <b>Bibliotecas</b>: as bibliotecas portadas, agrupadas por assunto.' }),
       h('li', { html: '<b>Conectar:</b> arraste de uma saída (lado direito) até uma entrada (lado esquerdo). Solte sobre a porta ou sobre a linha do parâmetro.' }),
       h('li', { html: '<b>Portas:</b> □ quadrada = acordes · ○ redonda = valor ou lista. Um valor pode alimentar qualquer parâmetro; acordes ligados a um parâmetro de altura enviam a primeira nota.' }),
-      h('li', { html: '<b>Desconectar:</b> clique no cabo, ou arraste a ponta de entrada para outro lugar.' }),
+      h('li', { html: '<b>Desconectar:</b> clique no cabo, ou arraste a ponta de entrada para outro lugar. Na tela de toque, o toque marca o cabo e mostra <b>✕ desconectar</b>.' }),
+      h('li', { html: '<b>Tela de toque (iPad, celular):</b> um dedo arrasta a mesa; dois dedos dão zoom (pinça). Arraste pela barra de título para mover a janela. Para ligar, arraste da saída até a entrada, ou toque na saída e depois na entrada (as entradas possíveis ficam marcadas; tocar em outro lugar desiste). Dedo parado meio segundo (ou dois toques) numa janela abre o menu do objeto; na mesa vazia, abre o «criar objeto» ali. O botão ⬚ da barra liga o modo seleção: arrastar na mesa desenha o retângulo que seleciona, e Editar ou o menu do objeto copiam, colam e apagam. Quando os menus não cabem na largura (iPad em pé), o botão com a marca, à esquerda, abre todos eles.' }),
       h('li', { html: '<b>Zoom:</b> Ctrl/⌘ + roda do mouse ou pinça no trackpad (aproxima no ponto do cursor); dois dedos na tela de toque; botões − 100% + na barra (duplo clique em 100% ajusta o patch à tela); Ctrl + / Ctrl − / Ctrl 0. Em Opções → Roda do mouse, a roda sozinha pode dar zoom.' }),
       h('li', { html: '<b>Mover e apagar:</b> arraste pela barra de título; <span class="kbd">Delete</span> apaga a janela em foco (ou a seleção); ▾ recolhe.' }),
       h('li', { html: '<b>Ouvir:</b> ▶ em cada janela, ou clique num acorde da pauta. <span class="kbd">espaço</span> para o som.' }),
