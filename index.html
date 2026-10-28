@@ -24027,6 +24027,732 @@ Object.assign(DEFS, {
     } },
 });
 
+// Grids — sequenciador de bateria topográfico da Mutable Instruments
+// Algoritmo e dados originais: Émilie Gillet (2011–2012), github.com/pichenettes/eurorack/grids, GPL v3
+// (pattern_generator.cc, resources.cc, grids.cc) e avrlib (github.com/pichenettes/avril: Random, U8Mix, U8U8MulShift8).
+// Porte para JavaScript, bit a bit: as contas em 8 bits sem sinal, o LFSR de 16 bits e a ordem em que o firmware
+// consome os números do acaso (um Update a cada tique do relógio, mais três GetByte no passo 0) são os do módulo;
+// libs/test/grids.test.cjs compara com o código C++ original compilado nesta máquina (fixtures/grids-ref.json).
+const GRIDS = (() => {
+  // node_0 … node_24 (resources.cc): 3 instrumentos × 32 passos cada (BD, SD, HH)
+  const NODES = [
+    /* node_0 */ [255,0,0,0,0,0,145,0,0,0,0,0,218,0,0,0,72,0,36,0,182,0,0,0,109,0,0,0,72,0,0,0,36,0,109,0,0,0,8,0,255,0,0,0,0,0,72,0,0,0,182,0,0,0,36,0,218,0,0,0,145,0,0,0,170,0,113,0,255,0,56,0,170,0,141,0,198,0,56,0,170,0,113,0,226,0,28,0,170,0,113,0,198,0,85,0],
+    /* node_1 */ [229,0,25,0,102,0,25,0,204,0,25,0,76,0,8,0,255,0,8,0,51,0,25,0,178,0,25,0,153,0,127,0,28,0,198,0,56,0,56,0,226,0,28,0,141,0,28,0,28,0,170,0,28,0,28,0,255,0,113,0,85,0,85,0,159,0,159,0,255,0,63,0,159,0,159,0,191,0,31,0,159,0,127,0,255,0,31,0,159,0,127,0,223,0,95,0],
+    /* node_2 */ [255,0,0,0,127,0,0,0,0,0,102,0,0,0,229,0,0,0,178,0,204,0,0,0,76,0,51,0,153,0,25,0,0,0,127,0,0,0,0,0,255,0,191,0,31,0,63,0,0,0,95,0,0,0,0,0,223,0,0,0,31,0,159,0,255,0,85,0,148,0,85,0,127,0,85,0,106,0,63,0,212,0,170,0,191,0,170,0,85,0,42,0,233,0,21,0],
+    /* node_3 */ [255,0,212,0,63,0,0,0,106,0,148,0,85,0,127,0,191,0,21,0,233,0,0,0,21,0,170,0,0,0,42,0,0,0,0,0,141,0,113,0,255,0,198,0,0,0,56,0,0,0,85,0,56,0,28,0,226,0,28,0,170,0,56,0,255,0,231,0,255,0,208,0,139,0,92,0,115,0,92,0,185,0,69,0,46,0,46,0,162,0,23,0,208,0,46,0],
+    /* node_4 */ [255,0,31,0,63,0,63,0,127,0,95,0,191,0,63,0,223,0,31,0,159,0,63,0,31,0,63,0,95,0,31,0,8,0,0,0,95,0,63,0,255,0,0,0,127,0,0,0,8,0,0,0,159,0,63,0,255,0,223,0,191,0,31,0,76,0,25,0,255,0,127,0,153,0,51,0,204,0,102,0,76,0,51,0,229,0,127,0,153,0,51,0,178,0,102,0],
+    /* node_5 */ [255,0,51,0,25,0,76,0,0,0,0,0,102,0,0,0,204,0,229,0,0,0,178,0,0,0,153,0,127,0,8,0,178,0,127,0,153,0,204,0,255,0,0,0,25,0,76,0,102,0,51,0,0,0,0,0,229,0,25,0,25,0,204,0,178,0,102,0,255,0,76,0,127,0,76,0,229,0,76,0,153,0,102,0,255,0,25,0,127,0,51,0,204,0,51,0],
+    /* node_6 */ [255,0,0,0,223,0,0,0,31,0,8,0,127,0,0,0,95,0,0,0,159,0,0,0,95,0,63,0,191,0,0,0,51,0,204,0,0,0,102,0,255,0,127,0,8,0,178,0,25,0,229,0,0,0,76,0,204,0,153,0,51,0,25,0,255,0,226,0,255,0,255,0,198,0,28,0,141,0,56,0,170,0,56,0,85,0,28,0,170,0,28,0,113,0,56,0],
+    /* node_7 */ [223,0,0,0,63,0,0,0,95,0,0,0,223,0,31,0,255,0,0,0,159,0,0,0,127,0,31,0,191,0,31,0,0,0,0,0,109,0,0,0,218,0,0,0,182,0,72,0,8,0,36,0,145,0,36,0,255,0,8,0,182,0,72,0,255,0,72,0,218,0,36,0,218,0,0,0,145,0,0,0,255,0,36,0,182,0,36,0,182,0,0,0,109,0,0,0],
+    /* node_8 */ [255,0,0,0,218,0,0,0,36,0,0,0,218,0,0,0,182,0,109,0,255,0,0,0,0,0,0,0,145,0,72,0,159,0,0,0,31,0,127,0,255,0,31,0,0,0,95,0,8,0,0,0,191,0,31,0,255,0,31,0,223,0,63,0,255,0,31,0,63,0,31,0,95,0,31,0,63,0,127,0,159,0,31,0,63,0,31,0,223,0,223,0,191,0,191,0],
+    /* node_9 */ [226,0,28,0,28,0,141,0,8,0,8,0,255,0,8,0,113,0,28,0,198,0,85,0,56,0,198,0,170,0,28,0,8,0,95,0,8,0,8,0,255,0,63,0,31,0,223,0,8,0,31,0,191,0,8,0,255,0,127,0,127,0,159,0,115,0,46,0,255,0,185,0,139,0,23,0,208,0,115,0,231,0,69,0,255,0,162,0,139,0,115,0,231,0,92,0],
+    /* node_10 */ [145,0,0,0,0,0,109,0,0,0,0,0,255,0,109,0,72,0,218,0,0,0,0,0,36,0,0,0,182,0,0,0,0,0,127,0,159,0,127,0,159,0,191,0,223,0,63,0,255,0,95,0,31,0,95,0,31,0,8,0,63,0,8,0,255,0,0,0,145,0,0,0,182,0,109,0,109,0,109,0,218,0,0,0,72,0,0,0,182,0,72,0,182,0,36,0],
+    /* node_11 */ [255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,0,0,0,218,0,72,36,0,0,182,0,0,0,145,109,0,0,127,0,0,0,42,0,212,0,0,212,0,0,212,0,0,0,0,0,42,0,0,0,255,0,0,0,170,170,127,85,145,0,109,109,218,109,72,0,145,0,72,0,218,0,109,0,182,0,109,0,255,0,72,0,182,109,36,109,255,109,109,0],
+    /* node_12 */ [255,0,0,0,255,0,191,0,0,0,0,0,95,0,63,0,31,0,0,0,223,0,223,0,0,0,8,0,159,0,127,0,0,0,85,0,56,0,28,0,255,0,28,0,0,0,226,0,0,0,170,0,56,0,113,0,198,0,0,0,113,0,141,0,255,0,42,0,233,0,63,0,212,0,85,0,191,0,106,0,191,0,21,0,170,0,8,0,170,0,127,0,148,0,148,0],
+    /* node_13 */ [255,0,0,0,0,0,63,0,191,0,95,0,31,0,223,0,255,0,63,0,95,0,63,0,159,0,0,0,0,0,127,0,72,0,0,0,0,0,0,0,255,0,0,0,0,0,0,0,72,0,72,0,36,0,8,0,218,0,182,0,145,0,109,0,255,0,162,0,231,0,162,0,231,0,115,0,208,0,139,0,185,0,92,0,185,0,46,0,162,0,69,0,162,0,23,0],
+    /* node_14 */ [255,0,0,0,51,0,0,0,0,0,0,0,102,0,0,0,204,0,0,0,153,0,0,0,0,0,0,0,51,0,0,0,0,0,0,0,8,0,36,0,255,0,0,0,182,0,8,0,0,0,0,0,72,0,109,0,145,0,0,0,255,0,218,0,212,0,8,0,170,0,0,0,127,0,0,0,85,0,8,0,255,0,8,0,170,0,0,0,127,0,0,0,42,0,8,0],
+    /* node_15 */ [255,0,0,0,0,0,0,0,36,0,0,0,182,0,0,0,218,0,0,0,0,0,0,0,72,0,0,0,145,0,109,0,36,0,36,0,0,0,0,0,255,0,0,0,182,0,0,0,0,0,0,0,0,0,0,109,218,0,0,0,145,0,72,72,255,0,28,0,226,0,56,0,198,0,0,0,0,0,28,28,170,0,0,0,141,0,0,0,113,0,0,0,85,85,85,85],
+    /* node_16 */ [255,0,0,0,0,0,95,0,0,0,127,0,0,0,0,0,223,0,95,0,63,0,31,0,191,0,0,0,159,0,0,0,0,0,31,0,255,0,0,0,0,0,95,0,223,0,0,0,0,0,63,0,191,0,0,0,0,0,0,0,159,0,127,0,141,0,28,0,28,0,28,0,113,0,8,0,8,0,8,0,255,0,0,0,226,0,0,0,198,0,56,0,170,0,85,0],
+    /* node_17 */ [255,0,0,0,8,0,0,0,182,0,0,0,72,0,0,0,218,0,0,0,36,0,0,0,145,0,0,0,109,0,0,0,0,0,51,25,76,25,25,0,153,0,0,0,127,102,178,0,204,0,0,0,0,0,255,0,0,0,102,0,229,0,76,0,113,0,0,0,141,0,85,0,0,0,0,0,170,0,0,0,56,28,255,0,0,0,0,0,198,0,0,0,226,0,0,0],
+    /* node_18 */ [255,0,8,0,28,0,28,0,198,0,56,0,56,0,85,0,255,0,85,0,113,0,113,0,226,0,141,0,170,0,141,0,0,0,0,0,0,0,0,0,255,0,0,0,127,0,0,0,0,0,0,0,0,0,0,0,63,0,0,0,191,0,0,0,255,0,0,0,255,0,127,0,0,0,85,0,0,0,212,0,0,0,212,0,42,0,170,0,0,0,127,0,0,0,0,0],
+    /* node_19 */ [255,0,0,0,0,0,218,0,182,0,0,0,0,0,145,0,145,0,36,0,0,0,109,0,109,0,0,0,72,0,36,0,0,0,0,0,109,0,8,0,72,0,0,0,255,0,182,0,0,0,0,0,145,0,8,0,36,0,8,0,218,0,182,0,255,0,0,0,0,0,226,0,85,0,0,0,141,0,0,0,0,0,0,0,170,0,56,0,198,0,0,0,113,0,28,0],
+    /* node_20 */ [255,0,0,0,113,0,0,0,198,0,56,0,85,0,28,0,255,0,0,0,226,0,0,0,170,0,0,0,141,0,0,0,0,0,0,0,0,0,0,0,255,0,145,0,109,0,218,0,36,0,182,0,72,0,72,0,255,0,0,0,0,0,109,0,36,0,36,0,145,0,0,0,72,0,72,0,182,0,0,0,72,0,72,0,218,0,0,0,109,0,109,0,255,0,0,0],
+    /* node_21 */ [255,0,0,0,218,0,0,0,145,0,0,0,36,0,0,0,218,0,0,0,36,0,0,0,182,0,72,0,0,0,109,0,0,0,0,0,8,0,0,0,255,0,85,0,212,0,42,0,0,0,0,0,8,0,0,0,85,0,170,0,127,0,42,0,109,0,109,0,255,0,0,0,72,0,72,0,218,0,0,0,145,0,182,0,255,0,0,0,36,0,36,0,218,0,8,0],
+    /* node_22 */ [255,0,0,0,42,0,0,0,212,0,0,0,8,0,212,0,170,0,0,0,85,0,0,0,212,0,8,0,127,0,8,0,255,0,85,0,0,0,0,0,226,0,85,0,0,0,198,0,0,0,141,0,56,0,0,0,170,0,28,0,0,0,113,0,113,0,56,0,255,0,0,0,85,0,56,0,226,0,0,0,0,0,170,0,0,0,141,0,28,0,28,0,198,0,28,0],
+    /* node_23 */ [255,0,0,0,229,0,0,0,204,0,204,0,0,0,76,0,178,0,153,0,51,0,178,0,178,0,127,0,102,51,51,25,0,0,0,0,0,0,0,31,0,0,0,0,255,0,0,31,0,0,8,0,0,0,191,159,127,95,95,0,223,0,63,0,255,0,255,0,204,204,204,204,0,0,51,51,51,51,0,0,204,0,204,0,153,153,153,153,153,0,0,0,102,102,102,102],
+    /* node_24 */ [170,0,0,0,0,255,0,0,198,0,0,0,0,28,0,0,141,0,0,0,0,226,0,0,56,0,0,113,0,85,0,0,255,0,0,0,0,113,0,0,85,0,0,0,0,226,0,0,141,0,0,8,0,170,56,56,198,0,0,56,0,141,28,0,255,0,0,0,0,191,0,0,159,0,0,0,0,223,0,0,95,0,0,0,0,63,0,0,127,0,0,0,0,31,0,0],
+  ];
+  // lut_res_euclidean (resources.cc): 32 comprimentos × 32 densidades, máscaras de bits de 32 passos
+  const EUCLID = Uint32Array.from([
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,3,3,3,3,3,3,3,3,
+    0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,
+    5,5,5,5,5,5,5,5,5,5,7,7,7,7,7,7,
+    0,0,0,0,1,1,1,1,1,1,1,1,5,5,5,5,
+    5,5,5,5,13,13,13,13,13,13,13,13,15,15,15,15,
+    0,0,0,0,1,1,1,1,1,1,9,9,9,9,9,9,
+    13,13,13,13,13,13,29,29,29,29,29,29,31,31,31,31,
+    0,0,0,1,1,1,1,1,9,9,9,9,9,21,21,21,
+    21,21,21,45,45,45,45,45,61,61,61,61,61,63,63,63,
+    0,0,0,1,1,1,1,17,17,17,17,17,41,41,41,41,
+    45,45,45,45,93,93,93,93,93,125,125,125,125,127,127,127,
+    0,0,1,1,1,1,17,17,17,17,41,41,41,41,85,85,
+    85,85,173,173,173,173,221,221,221,221,253,253,253,253,255,255,
+    0,0,1,1,1,1,33,33,33,73,73,73,73,169,169,169,
+    173,173,173,365,365,365,365,445,445,445,509,509,509,509,511,511,
+    0,0,1,1,1,33,33,33,145,145,145,297,297,297,341,341,
+    341,341,429,429,429,733,733,733,957,957,957,1021,1021,1021,1023,1023,
+    0,0,1,1,1,65,65,65,145,145,297,297,297,681,681,681,
+    685,685,685,1453,1453,1453,1757,1757,1917,1917,1917,2045,2045,2045,2047,2047,
+    0,0,1,1,65,65,65,273,273,273,585,585,1193,1193,1193,1365,
+    1365,1709,1709,1709,2925,2925,3549,3549,3549,3965,3965,3965,4093,4093,4095,4095,
+    0,0,1,1,129,129,545,545,545,1169,1169,2345,2345,2345,2729,2729,
+    2733,2733,3501,3501,3501,5853,5853,7101,7101,7101,7933,7933,8189,8189,8191,8191,
+    0,0,1,1,129,129,545,545,2193,2193,2345,2345,2345,5289,5289,5461,
+    5461,5805,5805,11693,11693,11693,11997,11997,15293,15293,16125,16125,16381,16381,16383,16383,
+    0,0,1,1,257,257,1057,1057,2193,2193,4681,4681,9513,9513,10921,10921,
+    10925,10925,13741,13741,23405,23405,28381,28381,30653,30653,32253,32253,32765,32765,32767,32767,
+    0,1,1,257,257,2113,2113,4369,4369,9361,9361,10537,10537,21161,21161,21845,
+    21845,23213,23213,44461,44461,46813,46813,56797,56797,61309,61309,65021,65021,65533,65533,65535,
+    0,1,1,513,513,2113,2113,8737,8737,17553,17553,18729,38057,38057,43689,43689,
+    43693,43693,54957,54957,93613,95965,95965,113597,113597,126845,126845,130045,130045,131069,131069,131071,
+    0,1,1,513,513,4161,4161,16929,34961,34961,37449,37449,76073,86697,86697,87381,
+    87381,88749,88749,109997,187245,187245,192221,192221,228285,253821,253821,261117,261117,262141,262141,262143,
+    0,1,1,1025,1025,8321,16929,16929,34961,74897,74897,84265,84265,169129,174761,174761,
+    174765,174765,186029,355757,355757,374493,374493,454365,490429,490429,507645,522237,522237,524285,524285,524287,
+    0,1,1,1025,8321,8321,33825,69905,69905,148625,148625,149801,304425,304425,346793,349525,
+    349525,354989,439725,439725,748973,751325,751325,908765,908765,980925,1031933,1031933,1046525,1048573,1048573,1048575,
+    0,1,1,2049,16513,16513,67649,139809,139809,280721,299593,299593,338217,677033,677033,699049,
+    699053,743085,743085,1420717,1497965,1497965,1535709,1817533,1817533,1961853,2064125,2064125,2093053,2097149,2097149,2097151,
+    0,1,1,2049,33025,133185,133185,270881,297105,297105,599185,608553,1217705,1217705,1395369,1398101,
+    1398101,1403565,1758893,1758893,2977197,2995933,3600093,3600093,3652541,3927933,3927933,4128253,4190205,4194301,4194301,4194303,
+    0,1,1,4097,33025,133185,133185,541217,559249,1189009,1189009,1198377,2435369,2708137,2708137,2796201,
+    2796205,2972333,2972333,3517869,5991853,6010589,6010589,7270109,7306173,8122237,8122237,8322557,8380413,8388605,8388605,8388607,
+    0,1,4097,4097,65793,266305,541217,541217,1118481,2245777,2396745,2697513,2697513,4887721,5581481,5592405,
+    5592405,5614253,7001773,11382189,11382189,11983725,12285661,14540253,15694781,15694781,16244605,16645629,16769021,16769021,16777213,16777215,
+    0,1,8193,8193,131585,532609,1082401,2236961,2236961,4491409,4793489,4868393,9741609,9741609,11096745,11184809,
+    11184813,11360941,14071213,14071213,23817645,23967453,24571613,29080509,29080509,31389629,32489213,33291261,33538045,33538045,33554429,33554431,
+    0,1,8193,131585,131585,1056897,2164801,4465185,4753553,9577617,9577617,9586985,19212585,21664937,22358697,22369621,
+    22369621,22391469,23778989,28683693,47934893,47953629,47953629,57601757,58178493,62779261,64995069,66845693,66845693,67092477,67108861,67108863,
+    0,1,16385,262657,262657,1056897,4261953,8667681,8947857,19022993,19173961,21580073,21580073,38966441,44389033,44739241,
+    44739245,45439661,56284845,91057581,91057581,95869805,96171741,116322013,116882365,125693821,132103933,133692413,133692413,134184957,134217725,134217727,
+    0,1,16385,525313,2113665,8521793,8521793,8929825,17895697,35932305,38347921,38422825,77932841,86660265,89434793,89478485,
+    89478485,89565869,95114925,112569773,191589805,191739613,196570845,232644061,250575805,251391869,251391869,264208125,267384829,268402685,268435453,268435455,
+    0,1,32769,525313,4227329,8521793,17318433,35791393,35791393,38045841,76620945,76695849,86321449,156406953,177556137,178956969,
+    178956973,181758637,224057005,364228013,383479213,383629021,460779229,465288125,465288125,502234045,519827325,528416253,535820285,536805373,536870909,536870911,
+    0,1,32769,1049601,8421633,17043521,34636833,71442977,71862417,152192145,153391689,155797801,311731497,346641065,357870249,357913941,
+    357913941,358001325,380459693,450278829,762146221,766958445,769357533,930016989,930855869,1004468157,1039654781,1056898557,1071642621,1073676285,1073741821,1073741823,
+    0,1,65537,2099201,8421633,34087041,69273665,138682913,143165585,287458449,306783377,307382569,614803753,625644713,714427049,715827881,
+    715827885,718629549,896194221,917876141,1532718509,1533916893,1572566749,1861152477,1870117821,2008936317,2079309565,2130640381,2143285245,2147352573,2147483645,2147483647,
+    0,1,65537,2099201,16843009,67641473,138479681,277365281,286331153,574916753,613491857,613566761,690563369,1246925993,1386828457,1431481001,
+    1432005293,1521310381,1801115309,2913840557,3067833773,3067983581,3145133789,3722304989,3740236733,4018007933,4159684349,4261281277,4290768893,4294836221,4294967293,4294967295,
+  ]);
+
+  // drum_map[5][5] de pattern_generator.cc: o primeiro índice vem de X, o segundo de Y
+  const MAP = [
+    [10, 8, 0, 9, 11],
+    [15, 7, 13, 12, 6],
+    [18, 14, 4, 5, 3],
+    [23, 16, 21, 1, 2],
+    [24, 19, 17, 20, 22],
+  ];
+  const STEPS = 32, PULSES_PER_STEP = 3, PARTS = 3;
+  /** ticks_granularity de grids.cc: quantos pulsos (de 24 ppqn) cada tique do relógio avança, por resolução */
+  const GRANULARITY = { 4: 6, 8: 3, 24: 1 };
+  const VOICES = ['BD', 'SD', 'HH'];
+
+  // ── avrlib/op.h (as versões em C; o assembly AVR faz as mesmas contas) ──
+  const u8mix = (a, b, bal) => (a * (255 - bal) + b * bal) >> 8;
+  const mulShift8 = (a, b) => (a * b) >> 8;
+  // ── avrlib/random.h: LFSR de Galois, x^16 + x^14 + x^13 + x^11, período 65535; estado inicial 0x21 ──
+  const lfsr = (s) => ((s >>> 1) ^ (-(s & 1) & 0xb400)) & 0xffff;
+  const POWER_ON_SEED = 0x21;
+  /** semente do usuário → estado de 16 bits (0 travaria o LFSR: vira 0x21, o estado do módulo ao ligar) */
+  const seedState = (seed) => { const s = ((Math.round(+seed || 0) % 65536) + 65536) % 65536; return s || POWER_ON_SEED; };
+
+  const clamp8 = (v) => Math.max(0, Math.min(255, Math.round(+v || 0)));
+
+  /** PatternGenerator::ReadDrumMap: mistura bilinear dos quatro nós vizinhos */
+  function readDrumMap(step, instrument, x, y) {
+    const i = x >> 6, j = y >> 6;
+    const a = NODES[MAP[i][j]], b = NODES[MAP[i + 1][j]], c = NODES[MAP[i][j + 1]], d = NODES[MAP[i + 1][j + 1]];
+    const off = instrument * STEPS + step, xb = (x << 2) & 255, yb = (y << 2) & 255;
+    return u8mix(u8mix(a[off], b[off], xb), u8mix(c[off], d[off], xb), yb);
+  }
+
+  /** o corpo de EvaluateDrums para um passo, com a perturbação já sorteada (part_perturbation_) */
+  function evaluate(step, s, perturbation = [0, 0, 0]) {
+    const x = clamp8(s.x), y = clamp8(s.y), trig = [0, 0, 0], acc = [0, 0, 0], level = [0, 0, 0];
+    for (let i = 0; i < PARTS; i++) {
+      let lv = readDrumMap(step & 31, i, x, y);
+      const p = perturbation[i] | 0;
+      if (lv < 255 - p) lv += p;
+      else lv = 255;   // "The sequencer from Anushri uses a weird clipping rule here": o Grids satura em 255
+      const threshold = ~clamp8(s.density[i]) & 255;
+      if (lv > threshold) { trig[i] = 1; if (lv > 192) acc[i] = 1; }
+      level[i] = lv;
+    }
+    return { trig, acc, level };
+  }
+
+  /** índice de densidade (0–31) da tabela euclidiana que dá «hits» ataques em «len» passos (o mais próximo) */
+  function euclidDensity(len, hits) {
+    len = Math.max(1, Math.min(32, Math.round(len))); hits = Math.max(0, Math.min(len, Math.round(hits)));
+    let best = 0, bd = Infinity;
+    for (let d = 0; d < 32; d++) { const k = popcount(EUCLID[(len - 1) * 32 + d], len); const e = Math.abs(k - hits); if (e < bd) { bd = e; best = d; } }
+    return best;
+  }
+  function popcount(bits, len) { let k = 0; for (let i = 0; i < len; i++) k += (bits >>> i) & 1; return k; }
+  /** valores crus do módulo (0–255) para o modo euclidiano: euclidean_length = (len−1)·8, density = índice·8 */
+  const euclidRaw = (len, hits) => ({ length: (Math.max(1, Math.min(32, Math.round(len))) - 1) << 3, density: euclidDensity(len, hits) << 3 });
+  const euclidPattern = (lengthRaw, densityRaw) => { const len = (clamp8(lengthRaw) >> 3) + 1, d = clamp8(densityRaw) >> 3, bits = EUCLID[(len - 1) * 32 + d];
+    return Array.from({ length: len }, (_, i) => (bits >>> i) & 1); };
+
+  /**
+   * Roda o gerador como o firmware, tique a tique (grids.cc: swing_amount = swing_amount(); TickClock(increment)).
+   * o = { cycles, mode: 'drums'|'euclid', swing: bool, ppqn: 24|8|4, seed,
+   *       at(absStep) → { x, y, randomness, density:[3] } (bateria) ou { length:[3], density:[3] } (euclidiano), valores crus 0–255 }
+   * → { steps, trig:[3][steps], acc:[3][steps] (no euclidiano: o início de cada ciclo, as saídas RST do módulo),
+   *     swing:[steps] (swing_amount de cada passo, −42…42: o passo dura (128 + s)/128 do normal), perturbation:[ciclos][3], rng }
+   */
+  function render(o) {
+    const cycles = Math.max(1, Math.round(o.cycles || 1)), total = cycles * STEPS, drums = o.mode !== 'euclid';
+    const inc = GRANULARITY[o.ppqn || 24]; if (!inc) throw new Error('resolução do relógio: 4, 8 ou 24 ppqn');
+    const at = typeof o.at === 'function' ? o.at : () => o.settings;
+    const trig = [0, 1, 2].map(() => new Array(total).fill(0)), acc = [0, 1, 2].map(() => new Array(total).fill(0));
+    const swing = new Array(total).fill(0), perturbation = [];
+    let step = 0, pulse = 0, abs = 0, rng = seedState(o.seed ?? POWER_ON_SEED);
+    const eu = [0, 0, 0], pert = [0, 0, 0];
+    while (abs < total) {
+      const s = at(abs);
+      // PatternGenerator::swing_amount()
+      let sw = 0;
+      if (o.swing && drums) { const v = mulShift8(clamp8(s.randomness), 42 + 1); sw = !(step & 2) ? v : (0 - v) | 0; }
+      // TickClock → Evaluate
+      rng = lfsr(rng);                                   // Random::Update() a cada tique
+      if (pulse === 0) {
+        if (drums) {
+          if (step === 0) {
+            for (let i = 0; i < PARTS; i++) {
+              const randomness = o.swing ? 0 : clamp8(s.randomness) >> 2;
+              rng = lfsr(rng);                           // Random::GetByte()
+              pert[i] = mulShift8(rng >> 8, randomness);
+            }
+            perturbation.push([...pert]);
+          }
+          const r = evaluate(step, s, pert);
+          for (let i = 0; i < PARTS; i++) { trig[i][abs] = r.trig[i]; acc[i][abs] = r.acc[i]; }
+        } else if (!(step & 1)) {                        // EvaluateEuclidean: só nas semicolcheias
+          for (let i = 0; i < PARTS; i++) {
+            const length = (clamp8(s.length[i]) >> 3) + 1, density = clamp8(s.density[i]) >> 3;
+            const address = (length - 1) * 32 + density;
+            while (eu[i] >= length) eu[i] -= length;
+            if ((EUCLID[address] >>> eu[i]) & 1) trig[i][abs] = 1;
+            if (eu[i] === 0) acc[i][abs] = 1;
+          }
+        }
+      }
+      const before = step;
+      pulse += inc;
+      while (pulse >= PULSES_PER_STEP) {
+        pulse -= PULSES_PER_STEP;
+        if (!(step & 1)) for (let i = 0; i < PARTS; i++) eu[i] = (eu[i] + 1) & 255;
+        ++step;
+      }
+      if (step >= STEPS) step -= STEPS;
+      const adv = (step - before + STEPS) % STEPS;
+      for (let k = 0; k < adv && abs + k < total; k++) swing[abs + k] = sw;
+      abs += adv;
+    }
+    return { steps: total, trig, acc, swing, perturbation, rng };
+  }
+
+  /** onsets (ms) de cada passo com o swing do módulo: o relógio dá a volta em 128 + swing_amount em vez de 128 */
+  function stepTimes(swing, stepMs) {
+    const on = [], du = []; let t = 0;
+    swing.forEach((s) => { const d = (stepMs * (128 + s)) / 128; on.push(t); du.push(d); t += d; });
+    return { onsets: on, durs: du, total: t };
+  }
+
+  return { NODES, EUCLID, MAP, STEPS, VOICES, GRANULARITY, POWER_ON_SEED, u8mix, mulShift8, lfsr, seedState, readDrumMap, evaluate, euclidDensity, euclidRaw, euclidPattern, render, stepTimes };
+})();
+
+
+// Grids (Mutable Instruments, Émilie Gillet, GPL v3): o objeto «grids» — o mapa topográfico de grooves de bateria.
+// O motor (libs/grids.js) é o pattern_generator.cc do módulo, bit a bit; aqui ficam as entradas, as saídas e o desenho.
+{
+  const GR_VOZ = ['bumbo', 'caixa', 'chimbal'], GR_ID = ['bd', 'sd', 'hh'];
+  /** valores de uma entrada → 0–255 crus do módulo; «auto»: uma lista toda entre 0 e 1 com decimais (LFO, tabela normalizada) vale 0–1 */
+  const grScale = (list, esc, def) => {
+    const L = (list && list.length ? list : [def]).map(Number).filter(Number.isFinite);
+    if (!L.length) return [def];
+    const frac = L.every((v) => v >= 0 && v <= 1) && L.some((v) => !Number.isInteger(v));
+    const k = esc === '100' ? 2.55 : esc === '1' || (esc === 'auto' && frac) ? 255 : 1;
+    return L.map((v) => Math.max(0, Math.min(255, Math.round(v * k))));
+  };
+  /** número de ataques no euclidiano: inteiro (0 a comprimento) ou, com escala 0–1 / lista fracionária, fração do comprimento */
+  const grHits = (list, esc, def) => {
+    const L = (list && list.length ? list : [def]).map(Number).filter(Number.isFinite);
+    const frac = esc === '1' || (esc === 'auto' && L.every((v) => v >= 0 && v <= 1) && L.some((v) => !Number.isInteger(v)));
+    return { L: L.length ? L : [def], at: (v, len) => Math.max(0, Math.min(len, Math.round(frac ? v * len : esc === '100' ? (v / 100) * len : v))) };
+  };
+  const grRange = (L) => (Math.min(...L) === Math.max(...L) ? String(L[0]) : `${Math.min(...L)}–${Math.max(...L)}`);
+
+  /** desenho: o mapa 5 × 5 com o caminho de X/Y e a grade de passos (3 vozes × 32 passos por ciclo; cheio = acento) */
+  function grSVG(o) {
+    const W = 440, M = 14, cell = 30, mapW = cell * 4, gx0 = M + mapW + 34, cw = (W - gx0 - 6) / o.cols, rh = 10, gap = 7;
+    const showC = Math.min(o.cycles, 8), H = Math.max(mapW + 2 * M + 26, 20 + showC * (3 * rh + gap) + 18);
+    const s = [`<svg viewBox="0 0 ${W} ${H.toFixed(0)}" role="img" aria-label="Grids: mapa e passos"><rect width="${W}" height="${H.toFixed(0)}" fill="var(--paper)"/>`];
+    const X0 = M, Y0 = M + 4;
+    // nós do mapa (drum_map[i][j]: i vem de X →, j de Y ↓, como a tabela do código)
+    for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) {
+      const x = X0 + i * cell, y = Y0 + j * cell;
+      s.push(`<rect x="${x - 3}" y="${y - 3}" width="6" height="6" fill="var(--paper)" stroke="var(--ink)" stroke-width="1"/>`);
+    }
+    for (let k = 0; k < 5; k++) {
+      s.push(`<line x1="${X0}" y1="${Y0 + k * cell}" x2="${X0 + mapW}" y2="${Y0 + k * cell}" stroke="var(--ink)" stroke-width="0.4" stroke-dasharray="1 3"/>`);
+      s.push(`<line x1="${X0 + k * cell}" y1="${Y0}" x2="${X0 + k * cell}" y2="${Y0 + mapW}" stroke="var(--ink)" stroke-width="0.4" stroke-dasharray="1 3"/>`);
+    }
+    const P = (x, y) => [X0 + (x / 64) * cell, Y0 + (y / 64) * cell];
+    if (o.euclid) s.push(SVGT(X0 + mapW / 2, Y0 + mapW + 18, 'euclidiano: sem mapa', 13, 'middle'));
+    else {
+      const pts = o.pos.map(([x, y]) => P(x, y));
+      if (pts.length > 1) s.push(`<polyline points="${pts.map((p) => p.map((v) => v.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="var(--ink)" stroke-width="1.2"/>`);
+      pts.forEach((p, k) => s.push(`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${k === 0 ? 4.5 : 2.2}" fill="${k === 0 ? 'var(--ink)' : 'var(--paper)'}" stroke="var(--ink)" stroke-width="1.2"/>`));
+      s.push(SVGT(X0 + mapW / 2, Y0 + mapW + 18, `X ${grRange(o.pos.map((p) => p[0]))} · Y ${grRange(o.pos.map((p) => p[1]))}`, 13, 'middle'));
+    }
+    // grade de passos
+    for (let c = 0; c < showC; c++) {
+      const y0 = 16 + c * (3 * rh + gap);
+      for (let v = 0; v < 3; v++) {
+        const y = y0 + v * rh;
+        if (c === 0) s.push(SVGT(gx0 - 4, y + rh - 1, o.euclid ? `${o.lens[v]}` : ['BD', 'SD', 'HH'][v], 11, 'end'));
+        for (let k = 0; k < o.cols; k++) {
+          const i = c * o.cols + k, x = gx0 + k * cw, t = o.trig[v][i], a = o.acc[v][i];
+          if (t) s.push(`<rect x="${(x + 0.5).toFixed(1)}" y="${y + 0.5}" width="${(cw - 1).toFixed(1)}" height="${rh - 1}" fill="var(--ink)"${a ? '' : ' fill-opacity="0.4"'}/>`);
+          else if (a) s.push(`<rect x="${(x + 1).toFixed(1)}" y="${y + 1}" width="${(cw - 2).toFixed(1)}" height="${rh - 2}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`);
+          else if (k % (o.cols / 4) === 0) s.push(`<rect x="${(x + cw / 2 - 0.5).toFixed(1)}" y="${y + rh / 2 - 0.5}" width="1" height="1" fill="var(--ink)"/>`);
+        }
+      }
+      for (let b = 0; b <= 4; b++) { const x = gx0 + (b * o.cols * cw) / 4; s.push(`<line x1="${x.toFixed(1)}" y1="${y0 - 1}" x2="${x.toFixed(1)}" y2="${y0 + 3 * rh}" stroke="var(--ink)" stroke-width="${b % 4 ? 0.4 : 0.9}"/>`); }
+    }
+    if (o.cycles > showC) s.push(SVGT(gx0, 16 + showC * (3 * rh + gap) + 8, `… mais ${o.cycles - showC} ciclo(s)`, 12, 'start'));
+    s.push(SVGT(W - 6, H - 5, o.euclid ? 'cheio = início do ciclo (RST)' : 'cheio = acento · cinza = gatilho', 11, 'end'));
+    s.push('</svg>');
+    return s.join('');
+  }
+
+  Object.assign(DEFS, {
+    grids: { group: 'Grids', title: 'Grids', extview: true, wide: true, noTiming: true,
+      desc: 'Sequenciador de bateria topográfico do módulo Grids da Mutable Instruments (Émilie Gillet, 2012; GPL v3), portado bit a bit do firmware: um mapa 5 × 5 de 25 grooves de bumbo, caixa e chimbal, em que X e Y escolhem o ponto (os quatro nós vizinhos são misturados). Cada passo de cada voz tem um nível 0–255; a nota soa quando o nível passa de 255 − densidade e é acentuada acima de 192. «caos» (o RANDOMNESS do módulo) soma a cada voz, no começo de cada ciclo de 32 passos, uma perturbação sorteada; com swing ligado ele passa a ser a quantidade de swing (de 50 % a 66 %: a primeira semicolcheia de cada par fica com até 2/3 do tempo), e o acaso some, como no módulo. Modo euclidiano: cada voz é um ritmo euclidiano (a tabela do Grids) de comprimento 1–32 e densidade = número de ataques, andando em semicolcheias, em ciclos independentes (polimetria); os acentos são o início de cada ciclo (as saídas RST). Os valores vão de 0 a 255 (como os potenciômetros; «escala» aceita 0–100 % ou 0–1; um LFO ou tabela de 0 a 1 com decimais vale 0–1 sozinho). X, Y, caos e densidades aceitam uma lista, uma tabela ou um LFO: um valor por ciclo ou por passo (em ciclo, ou reamostrado se a lista for maior, como nos outros objetos), e o groove se transforma ao longo do tempo. Um passo = 1/32 (8 por semínima, um ciclo = um compasso de 4/4); «resolução» 1/16 junta os passos de dois em dois. A semente é o estado do gerador de acaso do módulo (33 = o do módulo ao ligar); o relógio (ppqn) muda só quantos números do acaso cada ciclo consome.',
+      ins: [
+        I('modo', 'modo', 'sel', 'drums', { opts: [['drums', 'bateria (mapa X/Y)'], ['euclid', 'euclidiano']] }),
+        I('x', 'map X (0–255)', 'nums', '64'), I('y', 'map Y (0–255)', 'nums', '160'), I('caos', 'caos / swing (0–255)', 'nums', '0'),
+        I('dbd', 'densidade bumbo', 'nums', '150'), I('dsd', 'densidade caixa', 'nums', '120'), I('dhh', 'densidade chimbal', 'nums', '180'),
+        I('esc', 'escala dos valores', 'sel', 'auto', { opts: [['auto', '0–255 (LFO 0–1 com decimais: 0–1)'], ['100', '0–100 %'], ['1', '0–1']] }),
+        I('mod', 'listas: um valor por', 'sel', 'ciclo', { opts: [['ciclo', 'ciclo (32 passos)'], ['passo', 'passo']] }),
+        I('comp', 'comprimentos (euclid.)', 'nums', '16 12 7'),
+        I('swing', 'swing', 'sel', 'off', { opts: [['off', 'desligado (caos = acaso)'], ['on', 'ligado (caos = swing)']] }),
+        I('ciclos', 'ciclos (de 32 passos)', 'num', 4), I('tempo', 'andamento ♩', 'num', 110),
+        I('res', 'resolução', 'sel', '32', { opts: [['32', '1/32 (o passo do módulo)'], ['16', '1/16 (junta os passos 2 a 2)']] }),
+        I('dur', 'duração', 'sel', 'pulse', { opts: RMODE_OPTS }),
+        I('acentos', 'acentos', 'sel', 'vel', { opts: [['vel', 'velocidade alta'], ['sep', 'só nas saídas de acento']] }),
+        I('vel', 'velocidade', 'num', 80), I('velac', 'velocidade do acento', 'num', 120),
+        I('pbd', 'altura do bumbo', 'pitch', 'C2'), I('psd', 'altura da caixa', 'pitch', 'D2'), I('phh', 'altura do chimbal', 'pitch', 'F#2'),
+        I('ppqn', 'relógio (acaso)', 'sel', '24', { opts: [['24', '24 ppqn'], ['8', '8 ppqn'], ['4', '4 ppqn (só passos pares)']] }),
+        I('seed', 'semente', 'num', 33)],
+      outs: [{ id: 'out', label: 'acordes (as 3 vozes)', t: 'chords' }, { id: 'tree', label: 'ritmo (árvores do OM, 3 vozes)', t: 'any' },
+        { id: 'rbd', label: 'ritmo bumbo', t: 'num' }, { id: 'rsd', label: 'ritmo caixa', t: 'num' }, { id: 'rhh', label: 'ritmo chimbal', t: 'num' },
+        { id: 'gbd', label: 'gates bumbo (0/1)', t: 'num' }, { id: 'gsd', label: 'gates caixa (0/1)', t: 'num' }, { id: 'ghh', label: 'gates chimbal (0/1)', t: 'num' },
+        { id: 'abd', label: 'acentos bumbo (0/1)', t: 'num' }, { id: 'asd', label: 'acentos caixa (0/1)', t: 'num' }, { id: 'ahh', label: 'acentos chimbal (0/1)', t: 'num' },
+        { id: 'px', label: 'X (por ciclo/passo)', t: 'num' }, { id: 'py', label: 'Y (por ciclo/passo)', t: 'num' }],
+      help: {
+        app: 'Um LFO triangular de 8 pontos, de 0 a 255, leva X de um lado a outro do mapa e de volta ao longo de 8 ciclos (um valor por ciclo): o groove passa por vários nós — o desenho mostra o caminho no mapa (o ponto cheio é o primeiro ciclo) e os 3 × 32 passos de cada ciclo (cheio = acento). Y fica em 160; a Partitura recebe as três vozes juntas (bumbo C2, caixa D2, chimbal F#2, acentos com velocidade 120). Experimente ligar o swing (caos vira swing), aumentar o caos com swing desligado (cada ciclo sorteia uma perturbação) ou trocar para o modo euclidiano.',
+        patch: () => ({ nodes: [
+          { id: 'h1', type: 'lfo', x: 560, y: 40, params: { forma: 'tri', ciclos: 1, n: 8, lo: 0, hi: 255, fase: 0.75, q: 1 } },
+          { id: 'h2', type: 'grids', x: 1090, y: 40, params: { ciclos: 8, y: '160', dbd: '150', dsd: '120', dhh: '180', mod: 'ciclo' } },
+          { id: 'h3', type: 'partitura', x: 1620, y: 40, params: { approx: '2' } }],
+        cables: [C('h1', 'val', 'h2', 'x'), C('h2', 'out', 'h3', 'in')] }),
+      },
+      run: (a) => {
+        const cycles = Math.max(1, Math.min(64, Math.round(+a.ciclos || 1))), total = cycles * 32, euclid = a.modo === 'euclid', perStep = a.mod === 'passo';
+        const N = perStep ? total : cycles, idx = (abs) => (perStep ? abs : Math.floor(abs / 32));
+        const X = grScale(a.x, a.esc, 64), Y = grScale(a.y, a.esc, 160), CA = grScale(a.caos, a.esc, 0);
+        const dl = [a.dbd, a.dsd, a.dhh];
+        const lens = [0, 1, 2].map((v) => { const L = (a.comp || []).filter(Number.isFinite); return Math.max(1, Math.min(32, Math.round(L.length ? L[v % L.length] : 16))); });
+        const D = euclid ? dl.map((l, v) => grHits(l, a.esc, [5, 3, 7][v])) : dl.map((l, v) => grScale(l, a.esc, [150, 120, 180][v]));
+        const memo = new Map();
+        const at = (abs) => { const k = idx(abs); if (memo.has(k)) return memo.get(k); let s;
+          if (euclid) s = { length: lens.map((n) => (n - 1) << 3), randomness: modAt(CA, k, N), density: D.map((h, v) => GRIDS.euclidDensity(lens[v], h.at(modAt(h.L, k, N), lens[v])) << 3), hits: D.map((h, v) => h.at(modAt(h.L, k, N), lens[v])) };
+          else s = { x: modAt(X, k, N), y: modAt(Y, k, N), randomness: modAt(CA, k, N), density: D.map((L) => modAt(L, k, N)) };
+          memo.set(k, s); return s; };
+        const ppqn = +a.ppqn || 24, swing = a.swing === 'on';
+        const R = GRIDS.render({ cycles, mode: euclid ? 'euclid' : 'drums', swing, ppqn, seed: a.seed, at });
+        const tempo = Math.max(1, +a.tempo || 120), stepMs = 60000 / tempo / 8, T = GRIDS.stepTimes(R.swing, stepMs);
+        // resolução: 1/32 (o passo do módulo) ou 1/16 (os passos juntados de dois em dois)
+        const merge = a.res === '16', cols = merge ? 16 : 32, n = cycles * cols, unit = merge ? 1 / 16 : 1 / 32, den = merge ? 16 : 32;
+        const pick = (arr) => (merge ? Array.from({ length: n }, (_, k) => arr[2 * k] | arr[2 * k + 1]) : [...arr]);
+        const trig = R.trig.map(pick), acc = R.acc.map(pick);
+        const onsets = merge ? Array.from({ length: n }, (_, k) => T.onsets[2 * k]) : T.onsets, sdur = merge ? Array.from({ length: n }, (_, k) => T.durs[2 * k] + T.durs[2 * k + 1]) : T.durs;
+        const pitch = [a.pbd, a.psd, a.phh].map((p, v) => (Number.isFinite(p) ? p : [3600, 3800, 4200][v]));
+        const vel = Math.max(1, Math.min(127, Math.round(+a.vel || 80))), velac = Math.max(1, Math.min(127, Math.round(+a.velac || 120)));
+        const vOf = (v, k) => (a.acentos === 'vel' && acc[v][k] && trig[v][k] ? velac : vel);
+        const sigs = [[4, 4]], whole = (4 * 60000) / tempo, totalMs = T.total;
+        const tied = a.dur === 'tied';
+        const durTo = (hits, k, j) => (tied ? (j + 1 < hits.length ? onsets[hits[j + 1]] : totalMs) - onsets[k] : sdur[k]);
+        // uma voz: acordes de uma nota, ritmo (proporções) e árvore
+        const tree = (ratios) => {
+          if (typeof OM6 === 'undefined' || !ratios.some((x) => x > 0)) return null;
+          try { const txt = ratios.map((x) => { const k = Math.round(Math.abs(x) * den); return `${x < 0 ? '-' : ''}${k}/${den}`; }).join(' ');
+            return OM6.show(OM6.call('mktree', [OM6.read(`(${txt})`, 'ritmo'), OM6.lisp(sigs)])[0]); } catch { return null; }
+        };
+        const vozes = [0, 1, 2].map((v) => {
+          const hits = trig[v].map((t, k) => (t ? k : -1)).filter((k) => k >= 0), ratios = GEO.toRatios(trig[v], unit, a.dur);
+          const ch = VC(hits.map(() => [pitch[v]]), hits.map((k) => [vOf(v, k)]), { onsets: hits.map((k) => onsets[k]), durs: hits.map((k, j) => durTo(hits, k, j)), bars: barsFor(sigs, totalMs, whole), tempo, nota: hits.length ? buildNota(ratios, sigs) : null });
+          const t = tree(ratios);
+          return { hits, ratios, ch, tree: t ? { kind: 'om-tree', text: t, label: `árvore · ${GR_VOZ[v]} · ${cycles} compasso(s)`, toJSON() { return this.text; } } : null };
+        });
+        // as três vozes juntas: um acorde por passo com alguma nota
+        const any = Array.from({ length: n }, (_, k) => trig[0][k] | trig[1][k] | trig[2][k]), ks = any.map((t, k) => (t ? k : -1)).filter((k) => k >= 0);
+        const ratiosAll = GEO.toRatios(any, unit, a.dur);
+        const out = VC(ks.map((k) => [0, 1, 2].filter((v) => trig[v][k]).map((v) => pitch[v]).sort((p, q) => p - q)),
+          ks.map((k) => [0, 1, 2].filter((v) => trig[v][k]).sort((p, q) => pitch[p] - pitch[q]).map((v) => vOf(v, k))),
+          { onsets: ks.map((k) => onsets[k]), durs: ks.map((k, j) => durTo(ks, k, j)), bars: barsFor(sigs, totalMs, whole), tempo, nota: ks.length ? buildNota(ratiosAll, sigs) : null });
+        out.vozes = vozes.map((x) => x.ch);
+        const trees = vozes.map((x) => x.tree).filter(Boolean);
+        const treeV = trees.length ? { ...trees[0], label: `${trees.length} árvore(s) (uma por voz; na voice, «qual voz»)`, vozes: trees } : null;
+        const pos = Array.from({ length: N }, (_, k) => { const s = at(perStep ? k : k * 32); return [s.x ?? 0, s.y ?? 0]; });
+        const cnt = (v) => trig[v].reduce((s, x) => s + x, 0), cntA = (v) => trig[v].reduce((s, x, k) => s + (x && acc[v][k] ? 1 : 0), 0);
+        const head = euclid ? `euclidiano · ${[0, 1, 2].map((v) => `${GR_VOZ[v]} E(${grRange(D[v].L.map((h) => D[v].at(h, lens[v])))},${lens[v]})`).join(' · ')}`
+          : `bateria · X ${grRange(X)} · Y ${grRange(Y)} · ${swing ? `swing ${grRange(CA.map((c) => Math.round(((128 + GRIDS.mulShift8(c, 43)) / 256) * 100)))}%` : `caos ${grRange(CA)}`} · densidades ${[0, 1, 2].map((v) => grRange(D[v])).join('/')}`;
+        const info = `${head}\n${[0, 1, 2].map((v) => `${GR_VOZ[v]} ${cnt(v)}${euclid ? '' : ` (${cntA(v)} ac.)`}`).join(' · ')} · ${cycles} ciclo(s) de 32 passos${merge ? ' em 1/16' : ''} · ♩ = ${tempo}${(X.length > 1 || Y.length > 1 || CA.length > 1 || D.some((d) => (d.L || d).length > 1)) ? ` · listas: um valor por ${perStep ? 'passo' : 'ciclo'}` : ''} · semente ${GRIDS.seedState(a.seed)}`;
+        return { out, tree: treeV, rbd: withMeter(VN(vozes[0].ratios), sigs), rsd: withMeter(VN(vozes[1].ratios), sigs), rhh: withMeter(VN(vozes[2].ratios), sigs),
+          gbd: VN(trig[0]), gsd: VN(trig[1]), ghh: VN(trig[2]), abd: VN(acc[0]), asd: VN(acc[1]), ahh: VN(acc[2]),
+          px: VN(pos.map((p) => p[0])), py: VN(pos.map((p) => p[1])), info,
+          ext: grSVG({ euclid, pos, trig, acc, cols, cycles, lens }) };
+      } },
+  });
+}
+
+// Branches — dois portões de Bernoulli da Mutable Instruments
+// Algoritmo e tabela originais: Émilie Gillet (2012), github.com/pichenettes/eurorack/branches/branches.cc, GPL v3.
+// O que é do firmware, linha a linha: o LFSR de 32 bits (rng_state = (rng_state >> 1) ^ (-(rng_state & 1) & 0xD0000001),
+// começando em 1), a linear_table (valor de 8 bits do conversor → limiar de 16 bits), a regra
+// outcome = random >= threshold && threshold != 65535 (o canal 1 usa os 16 bits baixos da palavra, o canal 2 os 16 altos),
+// o modo toggle (outcome ^= resultado anterior) e o latch (a saída fica alta até a outra disparar).
+// outcome verdadeiro → saída B (GateOn liga out_x_b; LED vermelho, LED_STATE_RED = 1); falso → saída A (LED verde).
+// O que é deste porte: no módulo o LFSR anda uma vez por volta do laço principal, sem parar, e o número sorteado depende
+// do instante exato do gatilho (irreproduzível); aqui ele anda um número dado de passos entre um instante de evento e o
+// seguinte (fixo, ou proporcional à distância no tempo), a partir de uma semente — a estatística e a regra de decisão são
+// as do firmware e o resultado se repete com a mesma semente. libs/test/branches.test.cjs confere tudo com o C++ original
+// compilado nesta máquina (tools/branches-ref, fixtures/branches-ref.json).
+const BRANCHES = (() => {
+  const LINEAR = [
+    0, 0, 259, 518, 777, 1036, 1295, 1554, 1813, 2072, 2331, 2590, 2849, 3108, 3367, 3626,
+    3885, 4145, 4404, 4663, 4922, 5181, 5440, 5699, 5958, 6217, 6476, 6735, 6994, 7253, 7512, 7771,
+    8030, 8289, 8548, 8807, 9066, 9325, 9584, 9843, 10102, 10361, 10620, 10879, 11138, 11397, 11656, 11915,
+    12174, 12434, 12693, 12952, 13211, 13470, 13729, 13988, 14247, 14506, 14765, 15024, 15283, 15542, 15801, 16060,
+    16319, 16578, 16837, 17096, 17355, 17614, 17873, 18132, 18391, 18650, 18909, 19168, 19427, 19686, 19945, 20204,
+    20463, 20723, 20982, 21241, 21500, 21759, 22018, 22277, 22536, 22795, 23054, 23313, 23572, 23831, 24090, 24349,
+    24608, 24867, 25126, 25385, 25644, 25903, 26162, 26421, 26680, 26939, 27198, 27457, 27716, 27975, 28234, 28493,
+    28753, 29012, 29271, 29530, 29789, 30048, 30307, 30566, 30825, 31084, 31343, 31602, 31861, 32120, 32379, 32638,
+    32897, 33156, 33415, 33674, 33933, 34192, 34451, 34710, 34969, 35228, 35487, 35746, 36005, 36264, 36523, 36782,
+    37042, 37301, 37560, 37819, 38078, 38337, 38596, 38855, 39114, 39373, 39632, 39891, 40150, 40409, 40668, 40927,
+    41186, 41445, 41704, 41963, 42222, 42481, 42740, 42999, 43258, 43517, 43776, 44035, 44294, 44553, 44812, 45072,
+    45331, 45590, 45849, 46108, 46367, 46626, 46885, 47144, 47403, 47662, 47921, 48180, 48439, 48698, 48957, 49216,
+    49475, 49734, 49993, 50252, 50511, 50770, 51029, 51288, 51547, 51806, 52065, 52324, 52583, 52842, 53101, 53361,
+    53620, 53879, 54138, 54397, 54656, 54915, 55174, 55433, 55692, 55951, 56210, 56469, 56728, 56987, 57246, 57505,
+    57764, 58023, 58282, 58541, 58800, 59059, 59318, 59577, 59836, 60095, 60354, 60613, 60872, 61131, 61390, 61650,
+    61909, 62168, 62427, 62686, 62945, 63204, 63463, 63722, 63981, 64240, 64499, 64758, 65017, 65276, 65535, 65535];
+
+  /** uma volta do laço principal: rng_state = (rng_state >> 1) ^ (-(rng_state & 1u) & 0xD0000001u) */
+  const lfsr = (s) => ((s >>> 1) ^ (-(s & 1) & 0xd0000001)) >>> 0;
+  /** n voltas (n pode ser grande: o laço do módulo gira milhares de vezes entre dois gatilhos) */
+  const advance = (s, n) => { for (let i = 0; i < n; i++) s = ((s >>> 1) ^ (-(s & 1) & 0xd0000001)) >>> 0; return s; };
+  /** semente → estado inicial (1 = o do módulo ao ligar; 0 travaria o LFSR em 0) */
+  const seedState = (seed) => { const s = Math.round(Math.abs(+seed || 0)) >>> 0; return s || 1; };
+  /** limiar a partir do valor de 8 bits lido pelo conversor (pgm_read_word(linear_table + adc.ReadOut8())) */
+  const threshold = (adc) => LINEAR[Math.max(0, Math.min(255, Math.round(adc)))];
+  /**
+   * Posição do botão (0 = todo à esquerda … 255 = todo à direita) → valor do conversor. O manual diz que com o botão no
+   * máximo o modo toggle alterna A e B; no firmware isso só acontece com limiar 0 (todo sorteio ≥ 0 → outcome sempre
+   * verdadeiro, e o toggle inverte a cada gatilho), isto é, conversor em 0: o botão no máximo lê 0 V. Daí a inversão.
+   */
+  const knobToAdc = (knob) => 255 - Math.max(0, Math.min(255, Math.round(knob)));
+  /** chance de B para uma posição do botão (sem toggle) */
+  const probB = (knob) => { const t = threshold(knobToAdc(knob)); return t === 65535 ? 0 : (65536 - t) / 65536; };
+  /** a regra do firmware: bool outcome = random >= threshold && threshold != 65535; if (toggle) outcome ^= previous */
+  const decide = (random, thr, toggle, prev) => { let o = random >= thr && thr !== 65535; if (toggle) o = o !== prev; return o; };
+
+  /**
+   * Decide uma lista de gatilhos dos dois canais.
+   * evs: [{ t, ch }] (t em ms ou em voltas do laço; ch 0 ou 1), em qualquer ordem. Gatilhos no mesmo instante usam a mesma
+   * palavra do LFSR, como no laço do módulo (canal 1 = 16 bits baixos, canal 2 = 16 bits altos); um segundo gatilho do
+   * mesmo canal no mesmo instante anda uma volta antes.
+   * o: { seed, mode: 'fixo' | 'tempo', n, knob(ch, k) → 0–255 (k = índice do gatilho no canal), adc(ch, k) (no lugar de
+   *      knob: o valor cru do conversor), toggle: [b, b] }
+   *   'fixo': n voltas antes de cada instante de evento; 'tempo': round(n × distância no tempo) voltas (o 1º desde t = 0).
+   * → { outcome: [bool] (na ordem de evs), random: [16 bits], word: [32 bits], thr: [limiar], steps: total de voltas }
+   */
+  function render(evs, o = {}) {
+    const order = evs.map((e, i) => i).sort((a, b) => evs[a].t - evs[b].t || evs[a].ch - evs[b].ch || a - b);
+    const n = Math.max(0, +o.n || 0), tog = o.toggle || [false, false];
+    const out = { outcome: new Array(evs.length), random: new Array(evs.length), word: new Array(evs.length), thr: new Array(evs.length), steps: 0 };
+    let s = seedState(o.seed ?? 1), lastT = 0, first = true, used = [false, false];
+    const prev = [false, false], cnt = [0, 0];
+    for (const i of order) {
+      const e = evs[i], ch = e.ch ? 1 : 0;
+      let k = 0;
+      if (first || e.t !== lastT) { k = o.mode === 'tempo' ? Math.max(0, Math.round(n * (e.t - (first ? 0 : lastT)))) : Math.round(n); used = [false, false]; }
+      else if (used[ch]) k = 1, used = [false, false];
+      s = advance(s, k); out.steps += k; first = false; lastT = e.t; used[ch] = true;
+      const random = ch ? s >>> 16 : s & 0xffff;
+      const adc = o.adc ? o.adc(ch, cnt[ch]) : knobToAdc(o.knob ? o.knob(ch, cnt[ch]) : 128);
+      const thr = threshold(adc);
+      const r = decide(random, thr, !!tog[ch], prev[ch]);
+      prev[ch] = r; cnt[ch]++;
+      out.outcome[i] = r; out.random[i] = random; out.word[i] = s; out.thr[i] = thr;
+    }
+    return out;
+  }
+
+  /**
+   * Fim de cada gate, por canal. evs: [{ t, end, ch }] e outcome (de render).
+   * latch 'nao': a duração do evento (o gate segue o da entrada); 'sim': até o próximo evento do canal;
+   * 'continuo': como o módulo — a saída fica alta até a outra saída disparar (eventos seguidos na mesma saída não religam:
+   * ficam absorvidos no primeiro, absorbed[i] = true). tEnd: fim do material (para o último gate em latch).
+   * → { end: [t], absorbed: [bool] }
+   */
+  function gates(evs, outcome, latch, tEnd) {
+    const end = evs.map((e) => e.end), absorbed = evs.map(() => false);
+    if (latch !== 'sim' && latch !== 'continuo') return { end, absorbed };
+    for (const ch of [0, 1]) {
+      const idx = evs.map((e, i) => i).filter((i) => (evs[i].ch ? 1 : 0) === ch).sort((a, b) => evs[a].t - evs[b].t || a - b);
+      for (let j = 0; j < idx.length; j++) {
+        const i = idx[j];
+        if (latch === 'sim') { end[i] = j + 1 < idx.length ? evs[idx[j + 1]].t : Math.max(tEnd ?? -Infinity, evs[i].end ?? evs[i].t); continue; }
+        if (j > 0 && outcome[idx[j - 1]] === outcome[i]) absorbed[i] = true;
+        let m = j + 1; while (m < idx.length && outcome[idx[m]] === outcome[i]) m++;
+        end[i] = m < idx.length ? evs[idx[m]].t : Math.max(tEnd ?? -Infinity, evs[idx[m - 1]].end ?? evs[i].t);
+      }
+    }
+    return { end, absorbed };
+  }
+
+  return { LINEAR, lfsr, advance, seedState, threshold, knobToAdc, probB, decide, render, gates };
+})();
+
+
+// Branches (Mutable Instruments, Émilie Gillet, GPL v3): o objeto «branches» — dois portões de Bernoulli.
+// O motor (libs/branches.js) é a regra de decisão do branches.cc, com o LFSR e a tabela do firmware; aqui ficam as entradas
+// (sequências de eventos pelo cabo), a divisão de cada evento entre as saídas A e B, as alturas, o latch e o desenho.
+{
+  const BR_A = '#2f9e4f', BR_B = '#d8402f';   // as cores do LED do módulo: verde = A, vermelho = B (LED_STATE_GREEN / LED_STATE_RED)
+  /** p → posição do botão 0–255 (como no grids: «auto» lê uma lista toda entre 0 e 1 com decimais como 0–1) */
+  const brScale = (list, esc, def) => {
+    const L = (list && list.length ? list : [def]).map(Number).filter(Number.isFinite);
+    if (!L.length) return [def];
+    const frac = L.every((v) => v >= 0 && v <= 1) && L.some((v) => !Number.isInteger(v));
+    const k = esc === '100' ? 2.55 : esc === '1' || (esc === 'auto' && frac) ? 255 : 1;
+    return L.map((v) => Math.max(0, Math.min(255, Math.round(v * k))));
+  };
+  const brRange = (L) => (Math.min(...L) === Math.max(...L) ? String(L[0]) : `${Math.min(...L)}–${Math.max(...L)}`);
+  const brPct = (x) => `${Math.round(x * 100)}%`;
+  /** uma sequência do cabo → eventos com tempo (sem onsets: um evento a cada 500 ms) */
+  const brSeq = (v, chords, vels) => {
+    const n = chords.length, on = v?.onsets && v.onsets.length === n ? v.onsets : chords.map((c, i) => i * 500);
+    const du = v?.durs && v.durs.length === n ? v.durs : chords.map(() => 450);
+    const barEnd = v?.bars?.length ? v.bars[v.bars.length - 1].t : 0;
+    const end = Math.max(barEnd, ...on.map((t, i) => t + (du[i] || 0)), 0);
+    return { chords, vels: vels || v?.vels || null, on, du, bars: v?.bars || null, tempo: v?.tempo || null, nota: v?.nota || null, end, timed: !!v?.onsets };
+  };
+  const brVel = (seq, i, j) => { const r = seq.vels?.[i]; return Array.isArray(r) ? r[j] ?? r[r.length - 1] ?? 80 : Number.isFinite(r) ? r : 80; };
+  /**
+   * notação de uma saída a partir da notação da entrada: os eventos que vão para esta saída ficam, os do canal que foram para
+   * a outra viram pausa; com latch, as pausas (e os acordes que não são do canal) seguintes viram ligaduras da nota presa.
+   * X: Map(índice na entrada → índice na saída); chan: índices que são eventos do canal; absorbed: índices fundidos (contínuo).
+   */
+  const brNota = (nota, X, chan, latch, absorbed) => {
+    if (!nota?.ev) return null;
+    const ev = []; let own = null, held = null, prevE = null;
+    const rest = (e) => ev.push({ s: e.s, d: e.d, c: null });
+    const tie = (e, idx) => { const last = ev[ev.length - 1]; if (last && last.c === idx) { last.tieNext = true; ev.push({ s: e.s, d: e.d, c: idx }); } else rest(e); };
+    for (const e of nota.ev) {
+      const cont = prevE && prevE.tieNext && e.c != null && e.c === prevE.c;
+      if (e.c != null && !cont) {
+        if (X.has(e.c)) { own = X.get(e.c); held = latch ? own : null; ev.push({ s: e.s, d: e.d, c: own }); }
+        else if (absorbed?.has(e.c) && held != null) { own = null; tie(e, held); }
+        else if (chan?.has(e.c)) { own = null; held = null; rest(e); }
+        else { own = null; if (held != null) tie(e, held); else rest(e); }
+      } else if (cont) { if (own != null) tie(e, own); else if (held != null) tie(e, held); else rest(e); }
+      else { own = null; if (held != null) tie(e, held); else rest(e); }
+      prevE = e;
+    }
+    return ev.some((e) => e.c != null) ? { sigs: nota.sigs, ev } : null;
+  };
+  /** lista de eventos de saída [{ t, d, notes, vels, src }] → acordes com tempo (os do mesmo instante viram um acorde) */
+  const brVC = (items, seq, nota) => {
+    const by = new Map();
+    for (const it of items) {
+      const k = it.t, cur = by.get(k) || { t: it.t, d: 0, m: new Map(), src: it.src };
+      it.notes.forEach((p, j) => cur.m.set(p, Math.max(cur.m.get(p) || 0, it.vels[j] || 80)));
+      cur.d = Math.max(cur.d, it.d); if (cur.src !== it.src) cur.src = null; by.set(k, cur);
+    }
+    const L = [...by.values()].sort((a, b) => a.t - b.t);
+    const chords = L.map((x) => [...x.m.keys()].sort((a, b) => a - b)), vels = L.map((x, i) => chords[i].map((p) => x.m.get(p)));
+    return VC(chords, vels, { onsets: L.map((x) => x.t), durs: L.map((x) => x.d), bars: seq?.bars || null, tempo: seq?.tempo || null, nota: nota || null });
+  };
+
+  /** desenho: uma faixa por canal, cada gate pintado com a cor do LED (verde A, vermelho B), e a chance de B por cima */
+  function brSVG(o) {
+    const W = 440, L = 26, R = 8, rowH = 30, gap = 22, top = 8, H = top + 2 * (rowH + gap) + 18;
+    const span = Math.max(1, o.end), X = (t) => L + ((W - L - R) * t) / span;
+    const s = [`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Branches: eventos de cada canal em A e B"><rect width="${W}" height="${H}" fill="var(--paper)"/>`];
+    o.ch.forEach((c, k) => {
+      const y0 = top + k * (rowH + gap) + 12;
+      s.push(SVGT(4, y0 + rowH / 2 + 4, String(k + 1), 13, 'start'));
+      s.push(SVGT(L, y0 - 3, c.head, 11, 'start'));
+      s.push(`<rect x="${L}" y="${y0}" width="${W - L - R}" height="${rowH}" fill="none" stroke="var(--ink)" stroke-width="0.6"/>`);
+      if (o.bars) for (const b of o.bars) if (b.t > 0 && b.t < span) s.push(`<line x1="${X(b.t).toFixed(1)}" y1="${y0}" x2="${X(b.t).toFixed(1)}" y2="${y0 + rowH}" stroke="var(--ink)" stroke-width="0.3" stroke-dasharray="1 2"/>`);
+      for (const g of c.gates) {
+        const x = X(g.t), w = Math.max(1.2, X(g.t + g.d) - x - 0.6);
+        s.push(`<rect x="${x.toFixed(1)}" y="${(y0 + (g.b ? 2 : rowH / 2 + 1)).toFixed(1)}" width="${w.toFixed(1)}" height="${(rowH / 2 - 3).toFixed(1)}" fill="${g.b ? BR_B : BR_A}"/>`);
+      }
+      for (const t of c.trig) s.push(`<line x1="${X(t).toFixed(1)}" y1="${y0 + rowH}" x2="${X(t).toFixed(1)}" y2="${y0 + rowH + 3}" stroke="var(--ink)" stroke-width="0.8"/>`);
+      if (c.p.length > 1 && new Set(c.p.map((x) => x[1])).size > 1) {
+        const pts = c.p.map(([t, q]) => `${X(t).toFixed(1)},${(y0 + rowH - q * rowH).toFixed(1)}`).join(' ');
+        s.push(`<polyline points="${pts}" fill="none" stroke="var(--ink)" stroke-width="0.9" stroke-opacity="0.7"/>`);
+      }
+      if (!c.trig.length) s.push(SVGT(L + (W - L - R) / 2, y0 + rowH / 2 + 4, 'sem eventos', 11, 'middle'));
+    });
+    s.push(`<rect x="${L}" y="${H - 13}" width="9" height="7" fill="${BR_A}"/>`, SVGT(L + 12, H - 6, 'A', 11, 'start'));
+    s.push(`<rect x="${L + 26}" y="${H - 13}" width="9" height="7" fill="${BR_B}"/>`, SVGT(L + 38, H - 6, 'B', 11, 'start'));
+    s.push(SVGT(W - R, H - 6, o.foot, 11, 'end'));
+    s.push('</svg>');
+    return s.join('');
+  }
+
+  const TOG = [['off', 'desligado'], ['on', 'ligado (troca de saída com chance p)']];
+  const LATCH = [['nao', 'não (gate da entrada)'], ['sim', 'sim (até o próximo evento)'], ['continuo', 'contínuo (como o módulo)']];
+  Object.assign(DEFS, {
+    branches: { group: 'Branches', title: 'Branches', extview: true, wide: true, noTiming: true,
+      desc: 'Dois portões de Bernoulli do módulo Branches da Mutable Instruments (Émilie Gillet, 2012; GPL v3), com a regra de decisão do firmware: a cada evento que chega pelo cabo (notas ou acordes com tempo — do grids, de uma voz, de um ritmo…) uma moeda viciada decide se ele sai em A ou em B. p é o botão do módulo: 0 = sempre A, 255 = sempre B, 128 = meio a meio (o sorteio é um número de 16 bits do gerador do módulo, um LFSR de 32 bits, comparado com o limiar da tabela do firmware). Toggle: em vez de escolher a saída, a moeda decide se o evento troca de saída em relação ao anterior (p = 255 alterna A, B, A…; p = 0 fica sempre na mesma). Latch: a saída fica ligada até o próximo evento do canal («sim», cada evento soa de novo) ou, como no módulo, até a outra saída disparar («contínuo»: eventos seguidos na mesma saída se fundem numa nota longa). A entrada 2 sem cabo recebe a entrada 1 (a normalização do módulo); o canal 2 também pode receber a saída A ou B do canal 1 (cascata). «só a altura» faz o canal pegar, em cada acorde, só aquela nota (o resto passa direto, na saída «resto» e em «tudo»); «altura de A/B» troca a nota de cada saída (ex.: chimbal fechado e aberto). p aceita número, lista, tabela ou LFO: um valor por evento do canal ou por compasso. No módulo o gerador gira sem parar e o sorteio depende do instante exato do gatilho; aqui ele anda n voltas entre um instante de evento e o seguinte (ou n voltas por ms), a partir da semente (1 = o módulo ao ligar): a estatística e a regra são as do firmware, e o resultado se repete.',
+      ins: [
+        I('in', 'entrada 1', 'in'), I('in2', 'entrada 2 (sem cabo: 1)', 'in'),
+        I('fonte2', 'canal 2 recebe', 'sel', 'norm', { opts: [['norm', 'entrada 2 (sem cabo: a 1)'], ['a1', 'a saída A do canal 1'], ['b1', 'a saída B do canal 1'], ['nada', 'nada (canal 2 parado)']] }),
+        I('p1', 'p1: chance de B', 'nums', '128'), I('tog1', 'toggle 1', 'sel', 'off', { opts: TOG }), I('latch1', 'latch 1', 'sel', 'nao', { opts: LATCH }),
+        I('alvo1', 'só a altura (1)', 'opitch', ''), I('pa1', 'altura de A (1)', 'opitch', ''), I('pb1', 'altura de B (1)', 'opitch', ''),
+        I('p2', 'p2: chance de B', 'nums', '128'), I('tog2', 'toggle 2', 'sel', 'off', { opts: TOG }), I('latch2', 'latch 2', 'sel', 'nao', { opts: LATCH }),
+        I('alvo2', 'só a altura (2)', 'opitch', ''), I('pa2', 'altura de A (2)', 'opitch', ''), I('pb2', 'altura de B (2)', 'opitch', ''),
+        I('esc', 'escala de p', 'sel', 'auto', { opts: [['auto', '0–255 (LFO 0–1 com decimais: 0–1)'], ['100', '0–100 %'], ['1', '0–1']] }),
+        I('mod', 'listas: um valor por', 'sel', 'evento', { opts: [['evento', 'evento do canal'], ['compasso', 'compasso']] }),
+        I('passo', 'acaso entre eventos', 'sel', 'fixo', { opts: [['fixo', 'n voltas por instante de evento'], ['tempo', 'n voltas por ms (como o laço do módulo)']] }),
+        I('n', 'n (voltas do LFSR)', 'num', 1000), I('seed', 'semente', 'num', 1)],
+      outs: [{ id: 'a1', label: 'canal 1 · A', t: 'chords' }, { id: 'b1', label: 'canal 1 · B', t: 'chords' },
+        { id: 'a2', label: 'canal 2 · A', t: 'chords' }, { id: 'b2', label: 'canal 2 · B', t: 'chords' },
+        { id: 'out', label: 'tudo (A, B e resto juntos)', t: 'chords' }, { id: 'resto', label: 'resto (o que nenhum canal pegou)', t: 'chords' },
+        { id: 'sorteios', label: 'sorteios (0 = A, 1 = B; os dois canais no tempo)', t: 'num' }],
+      help: {
+        app: 'O grids toca bumbo (C2), caixa (D2) e chimbal (F#2). O canal 1 do Branches pega só o chimbal («só a altura» F#2): com o toggle ligado, cada batida do chimbal troca entre fechado (A, F#2) e aberto (B, A#2) com a chance p — e p vem de um LFO que vai de 0 (o chimbal fica fechado) a 1 (alterna a cada batida) e volta, ao longo dos eventos. Bumbo e caixa passam direto (saída «resto»), e «tudo» junta tudo para a Partitura. O desenho mostra cada evento do canal pintado com a cor do LED do módulo (verde = A, vermelho = B) e a curva de p por cima; o canal 2 está parado («canal 2 recebe: nada»); com «entrada 2», sem cabo nela, ele recebe a entrada 1, como no módulo. Experimente desligar o toggle (p passa a ser a chance de cada batida ir para B), ligar o latch ou mudar a semente.',
+        patch: () => ({ nodes: [
+          { id: 'h1', type: 'grids', x: 40, y: 40, params: { ciclos: 4, x: '64', y: '160', dbd: '150', dsd: '120', dhh: '220', mod: 'ciclo' } },
+          { id: 'h2', type: 'lfo', x: 40, y: 640, params: { forma: 'tri', ciclos: 1, n: 64, lo: 0, hi: 1, fase: 0.75, q: 0 } },
+          { id: 'h3', type: 'branches', x: 570, y: 40, params: { alvo1: 'F#2', pb1: 'A#2', tog1: 'on', fonte2: 'nada' } },
+          { id: 'h4', type: 'partitura', x: 1100, y: 40, params: { approx: '2' } }],
+        cables: [C('h1', 'out', 'h3', 'in'), C('h2', 'val', 'h3', 'p1'), C('h3', 'out', 'h4', 'in')] }),
+      },
+      run: (a) => {
+        // entrada 1 sem cabo: o canal 1 não recebe nada (como o módulo sem nada em IN 1), e a entrada 2 precisa de cabo
+        const has2 = !!a.in2$v && a.in2.length > 0;
+        if (!a.in.length && !has2) throw new Error('conecte uma sequência de eventos (notas ou acordes) à entrada 1 ou à entrada 2');
+        const s1 = brSeq(a.in$v, a.in, a.in$vels);
+        const src2 = a.fonte2 === 'nada' ? 'nada' : a.in.length && (a.fonte2 === 'a1' || a.fonte2 === 'b1') ? a.fonte2 : has2 ? 'in2' : 'norm';
+        const s2 = src2 === 'in2' ? brSeq(a.in2$v, a.in2, a.in2$vels) : s1;
+        const P = [brScale(a.p1, a.esc, 128), brScale(a.p2, a.esc, 128)], tog = [a.tog1 === 'on', a.tog2 === 'on'], latch = [a.latch1 || 'nao', a.latch2 || 'nao'];
+        const alvo = [a.alvo1, a.alvo2], pa = [a.pa1, a.pa2], pb = [a.pb1, a.pb2];
+        const near = (p, q) => Math.abs(p - q) < 1;
+        // eventos de um canal a partir de uma sequência: com «só a altura», só os acordes que a têm, e só ela
+        const fromSeq = (seq, ch) => seq.chords.map((c, i) => {
+          const js = alvo[ch] == null ? c.map((_, j) => j) : c.map((p, j) => (near(p, alvo[ch]) ? j : -1)).filter((j) => j >= 0);
+          return js.length ? { t: seq.on[i], end: seq.on[i] + seq.du[i], ch, src: i, notes: js.map((j) => c[j]), vels: js.map((j) => brVel(seq, i, j)) } : null;
+        }).filter(Boolean);
+        // um valor de p por evento do canal, ou por compasso
+        const knobFor = (evs, ch, seq) => {
+          const L = P[ch], bars = seq.bars?.filter((b) => !b.end) || [];
+          if (a.mod === 'compasso' && bars.length) {
+            const bi = (t) => { let k = 0; while (k + 1 < bars.length && bars[k + 1].t <= t + 1e-6) k++; return k; };
+            return evs.map((e) => modAt(L, bi(e.t), bars.length));
+          }
+          return evs.map((e, k) => modAt(L, k, evs.length));
+        };
+        const opt = (evs, knobs) => ({ seed: a.seed, mode: a.passo === 'tempo' ? 'tempo' : 'fixo', n: Math.max(0, Math.min(1e6, Math.round(+a.n || 0))), toggle: tog,
+          knob: (ch, k) => knobs[ch][k] });
+        const decideAll = (evs) => {
+          const knobs = [0, 1].map((ch) => knobFor(evs.filter((e) => e.ch === ch), ch, ch ? s2 : s1));
+          return { r: BRANCHES.render(evs, opt(evs, knobs)), knobs };
+        };
+        // saídas de um canal: A e B, com as alturas trocadas e o latch
+        const split = (evs, outc, ch, seq) => {
+          const idx = evs.map((e, i) => i).filter((i) => evs[i].ch === ch).sort((p, q) => evs[p].t - evs[q].t);
+          const sub = idx.map((i) => evs[i]), g = BRANCHES.gates(sub, idx.map((i) => outc[i]), latch[ch], seq.end);
+          const A = [], Bo = [], gl = [], abs = new Set();
+          idx.forEach((i, j) => {
+            const e = evs[i], b = outc[i];
+            if (g.absorbed[j]) { abs.add(e.src); return; }
+            const rp = b ? pb[ch] : pa[ch], notes = rp == null ? e.notes : [rp], vels = rp == null ? e.vels : [Math.max(...e.vels)];
+            const it = { t: e.t, d: Math.max(1, g.end[j] - e.t), notes, vels, src: e.src };
+            (b ? Bo : A).push(it); gl.push({ t: e.t, d: it.d, b });
+          });
+          return { A, B: Bo, gates: gl, abs, srcs: new Set(sub.map((e) => e.src)), trig: sub.map((e) => e.t) };
+        };
+        // canal 1
+        let evs = fromSeq(s1, 0);
+        let D = decideAll(evs), out1 = split(evs, D.r.outcome, 0, s1);
+        // canal 2: entrada 2, a entrada 1 (normalizada) ou uma saída do canal 1 (cascata: no mesmo instante, a mesma palavra do LFSR)
+        let e2;
+        if (src2 === 'a1' || src2 === 'b1') {
+          const from = src2 === 'a1' ? out1.A : out1.B;
+          e2 = from.map((it) => {
+            const js = alvo[1] == null ? it.notes.map((_, j) => j) : it.notes.map((p, j) => (near(p, alvo[1]) ? j : -1)).filter((j) => j >= 0);
+            return js.length ? { t: it.t, end: it.t + it.d, ch: 1, src: it.src, notes: js.map((j) => it.notes[j]), vels: js.map((j) => it.vels[j]) } : null;
+          }).filter(Boolean);
+        } else e2 = src2 === 'nada' ? [] : fromSeq(s2, 1);
+        evs = evs.concat(e2);
+        D = decideAll(evs);
+        out1 = split(evs, D.r.outcome, 0, s1);
+        const out2 = split(evs, D.r.outcome, 1, s2);
+        // o resto: as notas de cada acorde que nenhum canal pegou (da entrada 1 e, se houver, da entrada 2)
+        const taken = (seq, chs) => seq.chords.map((c, i) => c.map((p) => chs.some((ch) => (alvo[ch] == null ? true : near(p, alvo[ch])))));
+        const restOf = (seq, chs) => { const tk = taken(seq, chs); return seq.chords.map((c, i) => {
+          const js = c.map((_, j) => j).filter((j) => !tk[i][j]); return js.length ? { t: seq.on[i], d: seq.du[i], notes: js.map((j) => c[j]), vels: js.map((j) => brVel(seq, i, j)), src: i } : null; }).filter(Boolean); };
+        const rest1 = restOf(s1, src2 === 'norm' ? [0, 1] : [0]), rest2 = src2 === 'in2' ? restOf(s2, [1]) : [];
+        // notação: cada saída leva a notação da sua entrada, com pausas e ligaduras no lugar certo
+        const mapOf = (items) => new Map(items.map((it, k) => [it.src, k]));
+        const n1 = s1.nota, n2 = src2 === 'in2' ? s2.nota : s1.nota, sq2 = src2 === 'in2' ? s2 : s1;
+        const lat = (ch) => latch[ch] !== 'nao';
+        const res = {
+          a1: brVC(out1.A, s1, brNota(n1, mapOf(out1.A), out1.srcs, lat(0), out1.abs)), b1: brVC(out1.B, s1, brNota(n1, mapOf(out1.B), out1.srcs, lat(0), out1.abs)),
+          a2: brVC(out2.A, sq2, brNota(n2, mapOf(out2.A), out2.srcs, lat(1), out2.abs)), b2: brVC(out2.B, sq2, brNota(n2, mapOf(out2.B), out2.srcs, lat(1), out2.abs)),
+          resto: brVC(rest1.concat(rest2), a.in.length ? s1 : s2, rest2.length ? null : brNota(s1.nota, mapOf(rest1), null, false, null)),
+        };
+        // tudo: tudo junto (mesmo instante → um acorde); com uma fonte só, a notação é a da entrada 1
+        const all = [...out1.A, ...out1.B, ...out2.A, ...out2.B, ...rest1, ...rest2];
+        const oneSrc = src2 !== 'in2' || !a.in.length;   // tudo vem de uma entrada só: a notação dela serve
+        const allIdx = [...new Set(all.map((x) => x.src))].sort((p, q) => p - q);
+        const sOut = a.in.length ? s1 : s2;
+        // com latch em todos os canais que tocam, as notas presas (e as fundidas) aparecem ligadas também em «tudo»
+        const live = [0, 1].filter((ch) => evs.some((e) => e.ch === ch)), latchAll = live.length > 0 && live.every((ch) => latch[ch] !== 'nao');
+        res.out = brVC(all, sOut, oneSrc ? brNota(sOut.nota, new Map(allIdx.map((s, k) => [s, k])), null, latchAll, new Set([...out1.abs, ...out2.abs])) : null);
+        // sorteios: 0 = A, 1 = B, na ordem do tempo (no mesmo instante, canal 1 antes)
+        const ord = evs.map((e, i) => i).sort((p, q) => evs[p].t - evs[q].t || evs[p].ch - evs[q].ch);
+        res.sorteios = VN(ord.map((i) => (D.r.outcome[i] ? 1 : 0)));
+        // texto e desenho
+        const cnt = (o) => ({ a: o.A.length, b: o.B.length });
+        const srcTxt = ['entrada 1', { norm: 'entrada 1 (normalizada)', in2: 'entrada 2', a1: 'saída A do canal 1', b1: 'saída B do canal 1', nada: 'parado' }[src2]];
+        const line = (ch, o) => {
+          const n = ch ? e2.length : evs.length - e2.length, c = cnt(o), ks = D.knobs[ch];
+          const pb_ = ks.length ? ks.map((k) => BRANCHES.probB(k)) : [BRANCHES.probB(P[ch][0])];
+          const mx = Math.max(...pb_), mn = Math.min(...pb_);
+          const fl = [tog[ch] ? 'toggle' : '', latch[ch] === 'sim' ? 'latch' : latch[ch] === 'continuo' ? 'latch contínuo' : ''].filter(Boolean).join(' · ');
+          return `canal ${ch + 1} (${srcTxt[ch]}${alvo[ch] != null ? `, só ${name12(alvo[ch])}` : ''}): ${n} evento(s) → A ${c.a} · B ${c.b}${o.abs.size ? ` (${o.abs.size} fundido(s))` : ''} · p ${brRange(ks.length ? ks : P[ch])} → chance de ${tog[ch] ? 'trocar' : 'B'} ${mn === mx ? brPct(mn) : `${brPct(mn)}–${brPct(mx)}`}${fl ? ` · ${fl}` : ''}`;
+        };
+        const info = `${line(0, out1)}\n${line(1, out2)}\nacaso: semente ${BRANCHES.seedState(a.seed)} · ${opt(evs, [[], []]).n} volta(s) do LFSR ${a.passo === 'tempo' ? 'por ms' : 'por instante de evento'} (${D.r.steps} no total)${rest1.length + rest2.length ? ` · resto ${rest1.length + rest2.length} acorde(s)` : ''}`;
+        const chView = (o, ch, seq) => {
+          const idx = evs.map((e, i) => i).filter((i) => evs[i].ch === ch);
+          const fl = [tog[ch] ? 'toggle' : '', latch[ch] !== 'nao' ? (latch[ch] === 'sim' ? 'latch' : 'latch contínuo') : ''].filter(Boolean).join(' · ');
+          return { gates: o.gates, trig: o.trig, p: idx.map((i, k) => [evs[i].t, BRANCHES.probB(D.knobs[ch][k])]),
+            head: `${srcTxt[ch]}${alvo[ch] != null ? ` · só ${name12(alvo[ch])}` : ''} · A ${o.A.length} · B ${o.B.length}${fl ? ` · ${fl}` : ''}` };
+        };
+        const end = Math.max(s1.end, s2.end, ...all.map((x) => x.t + x.d));
+        res.ext = brSVG({ end, bars: sOut.bars, ch: [chView(out1, 0, s1), chView(out2, 1, sq2)], foot: `semente ${BRANCHES.seedState(a.seed)}` });
+        res.info = info;
+        return res;
+      } },
+  });
+}
+
 /*__LIB_SLOT__*/
 
 const GROUPS = ['Básico', 'Fontes', 'Euler', 'Tonnetz', 'OMRC', 'Melodia (OM)', 'Ritmo (OM)', 'Métrica', 'Ritmo geométrico', 'Profile', 'Séries harmônicas', 'Modulação', 'Distorção e deslocamento', 'Outros tratamentos', 'Intervalos', 'Conjuntos', 'Análise', 'Visualizar', 'Esquisse', 'Alea', 'Chaos', 'OM-JI', 'Forte', 'MathTools', 'RepMus', 'OMScoreTools', 'Jazz', 'Patterns', 'Tabelas', 'Ableton Live'];
@@ -25809,6 +26535,29 @@ const EXAMPLES = [
       C('n2', 'out', 'n17', 'list'), C('n17', 'lisp', 'n18', 'mat'), C('n18', 'lisp', 'n19', 'cl'),
       C('n2', 'out', 'n21', 'seq'), C('n21', 'lisp', 'n22', 'seq'), C('n22', 'lisp', 'n23', 'a'), C('n23', 'lisp', 'n24', 'posn'), C('n24', 'out', 'n25', 'in'),
       C('n3', 'out', 'n26', 'in'), C('n25', 'out', 'n26', 'b')] } },
+  { name: 'Grids: o mapa topográfico de grooves — X/Y com LFO, densidade com tabela', patch: {
+    nodes: [
+      { id: 'n1', type: 'comentario', x: 40, y: 40, params: { text: '# Grids: um groove que anda pelo mapa\nO Grids (Mutable Instruments, Émilie Gillet) guarda 25 grooves de bateria — bumbo, caixa e chimbal, 32 passos cada — nos nós de um mapa 5 × 5. X e Y escolhem um ponto do mapa, e o groove desse ponto é a mistura dos quatro nós vizinhos; cada voz toca os passos cujo nível passa do limiar dado pela densidade (os mais fortes, acima de 192, são acentos).\n- Dois LFOs dão um valor por ciclo (um ciclo = 32 passos de 1/32 = um compasso de 4/4): o seno leva X de 0 a 255 e de volta em 12 ciclos; o triângulo faz Y subir e descer duas vezes, entre 40 e 220. O desenho do Grids mostra o caminho no mapa (o ponto cheio é o primeiro ciclo) e os passos de cada ciclo (cheio = acento).\n- A tabela dá a densidade do chimbal ciclo a ciclo: ele começa ralo, adensa e volta a rarear.\n- caos 40 (swing desligado): no começo de cada ciclo, cada voz recebe uma perturbação sorteada, e o groove varia um pouco mesmo onde o mapa não muda (semente 33, o estado do módulo ao ligar).\n- A Partitura recebe as três vozes juntas (bumbo C2, caixa D2, chimbal F#2; os acentos têm velocidade 120).\n## Experimente\n- Ligar o swing: o caos vira a quantidade de swing (semicolcheias desiguais).\n- Trocar «listas: um valor por» para passo: o mapa muda no meio do compasso.\n- Redesenhar a tabela, ou ligar outra tabela à densidade do bumbo.\n- Modo euclidiano: comprimentos 16 12 7 e densidade = número de ataques (5 3 7).' } },
+      { id: 'n2', type: 'lfo', x: 560, y: 40, params: { forma: 'sine', ciclos: 1, n: 12, lo: 0, hi: 255, fase: 0.75, q: 1 } },
+      { id: 'n3', type: 'lfo', x: 560, y: 560, params: { forma: 'tri', ciclos: 2, n: 12, lo: 40, hi: 220, q: 1 } },
+      { id: 'n4', type: 'array', x: 560, y: 1080, params: { nome: 'chimbal', data: '40 80 140 200 240 255 230 180 120 80 60 40', size: 12, ymin: '0', ymax: '255', step: '1', estilo: 'bars' } },
+      { id: 'n5', type: 'grids', x: 1090, y: 40, params: { ciclos: 12, caos: '40', dbd: '150', dsd: '120', mod: 'ciclo', tempo: 110 } },
+      { id: 'n6', type: 'partitura', x: 1620, y: 40, params: { approx: '2' } },
+    ],
+    cables: [C('n2', 'val', 'n5', 'x'), C('n3', 'val', 'n5', 'y'), C('n4', 'val', 'n5', 'dhh'), C('n5', 'out', 'n6', 'in')] } },
+  { name: 'Grids + Branches: o chimbal se divide entre fechado e aberto', patch: {
+    nodes: [
+      { id: 'n1', type: 'comentario', x: 40, y: 40, params: { text: '# Grids + Branches: o chimbal se divide entre fechado e aberto\nO Branches (Mutable Instruments, Émilie Gillet) é um par de portões de Bernoulli: cada evento que chega sai em A ou em B, conforme uma moeda viciada. Aqui ele recebe o groove inteiro do Grids (bumbo C2, caixa D2, chimbal F#2, 12 compassos).\n- Canal 1, «só a altura» F#2: o Branches pega só o chimbal; bumbo e caixa passam direto. A = chimbal fechado (F#2, a altura original), B = aberto (A#2).\n- Toggle ligado: a moeda decide se cada batida TROCA de saída. p vem de um LFO, um valor por compasso: perto de 0 o chimbal fica no mesmo (fechado), perto de 1 alterna a cada batida, e no meio troca de vez em quando.\n- Embaixo, um segundo Branches com latch: um acorde por compasso entra no canal 2 (a entrada 1 fica sem cabo). Em «latch contínuo», como no módulo, a saída A fica ligada até a B disparar — compassos seguidos em A viram uma nota longa, e em B a camada se cala. A saída A vai para a pauta B da Partitura.\n- O desenho de cada Branches pinta os eventos com a cor do LED do módulo: verde = A, vermelho = B; a linha é a chance de B (ou de trocar). Mude a semente para outro sorteio; a mesma semente dá sempre o mesmo resultado.' } },
+      { id: 'n2', type: 'grids', x: 560, y: 40, params: { ciclos: 12, x: '64', y: '160', dbd: '150', dsd: '120', dhh: '220', mod: 'ciclo', tempo: 110 } },
+      { id: 'n3', type: 'lfo', x: 40, y: 760, params: { forma: 'tri', ciclos: 1, n: 12, lo: 0, hi: 1, fase: 0.75, q: 0 } },
+      { id: 'n4', type: 'branches', x: 1090, y: 40, params: { alvo1: 'F#2', pb1: 'A#2', tog1: 'on', fonte2: 'nada', mod: 'compasso' } },
+      { id: 'n5', type: 'acorde', x: 40, y: 1400, params: { text: 'E4 B4 D5' } },
+      { id: 'n6', type: 'voz', x: 560, y: 1400, params: { r: '1 1 1 1 1 1 1 1 1 1 1 1', tempo: 110, sig: '4/4' } },
+      { id: 'n7', type: 'branches', x: 1090, y: 1400, params: { p2: '110', latch2: 'continuo', seed: 4 } },
+      { id: 'n8', type: 'partitura', x: 1620, y: 40, params: { approx: '2' } },
+    ],
+    cables: [C('n2', 'out', 'n4', 'in'), C('n3', 'val', 'n4', 'p1'), C('n5', 'out', 'n6', 'in'), C('n6', 'out', 'n7', 'in2'),
+      C('n4', 'out', 'n8', 'in'), C('n7', 'a2', 'n8', 'b')] } },
 ];
 
 // ════════════════════════════════════════════════════════════════
@@ -25816,21 +26565,23 @@ const EXAMPLES = [
 // ════════════════════════════════════════════════════════════════
 // ─────────── menus no estilo GEM / cdp-web ───────────
 const GEN_TYPES = [['Fontes', ['acorde', 'nota', 'numero', 'lista', 'ritmo', 'bpf', 'lfo', 'array', 'midi-in', 'midi-rec', 'audio-in', 'audio-notas', 'pintura']], ['Tonnetz', ['tonnetz', 'netz-computepath', 'netz-computemelody', 'transpose-tonnetz']], ['Métrica', ['arvore', 'pulsemaker']], ['Harmonias de Euler', ['euler-genus', 'euler-series', 'euler-path']], ['Ritmo geométrico', ['euclides', 'poligonos']], ['Melodia', ['dx->x']], ['Séries harmônicas', ['sp-gen', 'n-sp-gen']], ['Modulação', ['fmo', 'rm-gen']], ['Patterns (SuperCollider)', ['pbind']]];
-const LIBS = [['Ableton Live', 'extensão: trilhas, clips, marcadores e andamento'], ['Patterns', 'padrões do SuperCollider (Pbind, Pseq, Prand…)'], ['Jazz', 'cifras, progressões e voicings (drop, quartal, Kenny Barron…)'], ['OMScoreTools', 'BPF e partitura (K. Haddad, IRCAM)'], ['RepMus', 'representações musicais (IRCAM)'], ['Esquisse', 'espectral e intervalar (IRCAM)'], ['Alea', 'aleatoriedade (M. Malt)'], ['Chaos', 'sistemas dinâmicos (M. Malt)'], ['OM-JI', 'entonação justa (C. Neimog)'], ['Forte', 'conjuntos de classes de altura (A. Forte)'], ['Filters', 'filtros de listas e curvas: passa-baixa, média e mediana (M. Malt)'], ['Pareto', 'análise e ressíntese de escalas a partir de análises de som (F. Lévy, J. Bresson)'], ['Situation', 'busca com restrições de acordes e ritmos: o Lisp original do IRCAM rodando aqui (A. Bonnet, C. Rueda)'], ['Magenta', 'redes neurais do Google para MIDI: continuar uma melodia ou uma batida (MelodyRNN, DrumsRNN)'], ['Matter', 'física como fonte de notas: bolas, pinos e pêndulos (Matter.js, L. Brummitt)'], ['RQ', 'quantificação rítmica supervisionada: do que foi tocado à partitura, escolhendo entre transcrições (A. Ycart, F. Jacquemard, J. Bresson)'], ['OMTimePack', 'ritmos por processos de Markov, partição de ataques e pulso variável (Paul Nauert)'], ['OMPitchField', 'conjuntos de classes de altura, campos de alturas, filtros de acordes, vetores e ordenação (Paul Nauert)'], ['OMCS', 'regras de restrição do PWConstraints (motor PMC) e teoria dos conjuntos de classes de altura (Laurson, Sandred)'], ['OMClouds', 'restrições resolvidas por busca local: listas, ciclos e permutações (Charlotte Truchet)'], ['OMLindberg', 'técnicas de acordes de Magnus Lindberg: interpolação, reconstrução por classes, acordes simétricos de doze sons, fundamental virtual (Paulo Raposo)'], ['Infinity', 'a série infinita de Per Nørgård e os seus cânones (Paulo Raposo)'], ['OM-AIS', 'séries de todos os intervalos: as 3856 AIS, invariantes, link-chords, constelação, acordes AIS e contornos melódicos (Paulo Raposo)'], ['MuseScore', 'ler e gravar partituras do MuseScore (.mscx, .mscz), com quartos e oitavos de tom (OM_mscore, A. Vinjar)'], ['MathTools', 'Zn, Lewin, sequências, crivos e cânones (Andreatta, Agon, Amiot, Noll)'], ['LZ', 'modelagem de estilo: aprende peças (MIDI ou vozes) e improvisa no mesmo estilo (G. Assayag, IRCAM)'], ['Morphologie', 'análise, padrões, estruturas, distâncias e classificação de sequências (J. Baboni Schilingi e F. Voisin, IRCAM)'], ['Lenia', 'autômato celular contínuo: criaturas que deslizam, giram e pulsam viram melodias, acordes e ritmos; notas e ritmos passam pela evolução (Bert Chan)'], ['Combine', 'manipulações combinatórias à maneira de Ferneyhough: formas da série, Messiaen, Barraqué, serrotes, Kreuzspiel, espirais, permutação dinâmica (M. Malt, IRCAM)']];
+const LIBS = [['Ableton Live', 'extensão: trilhas, clips, marcadores e andamento'], ['Grids', 'sequenciador de bateria topográfico (Mutable Instruments, É. Gillet)'], ['Branches', 'dois portões de Bernoulli: cada evento sai em A ou B, por sorteio (Mutable Instruments, É. Gillet)'], ['Patterns', 'padrões do SuperCollider (Pbind, Pseq, Prand…)'], ['Jazz', 'cifras, progressões e voicings (drop, quartal, Kenny Barron…)'], ['OMScoreTools', 'BPF e partitura (K. Haddad, IRCAM)'], ['RepMus', 'representações musicais (IRCAM)'], ['Esquisse', 'espectral e intervalar (IRCAM)'], ['Alea', 'aleatoriedade (M. Malt)'], ['Chaos', 'sistemas dinâmicos (M. Malt)'], ['OM-JI', 'entonação justa (C. Neimog)'], ['Forte', 'conjuntos de classes de altura (A. Forte)'], ['Filters', 'filtros de listas e curvas: passa-baixa, média e mediana (M. Malt)'], ['Pareto', 'análise e ressíntese de escalas a partir de análises de som (F. Lévy, J. Bresson)'], ['Situation', 'busca com restrições de acordes e ritmos: o Lisp original do IRCAM rodando aqui (A. Bonnet, C. Rueda)'], ['Magenta', 'redes neurais do Google para MIDI: continuar uma melodia ou uma batida (MelodyRNN, DrumsRNN)'], ['Matter', 'física como fonte de notas: bolas, pinos e pêndulos (Matter.js, L. Brummitt)'], ['RQ', 'quantificação rítmica supervisionada: do que foi tocado à partitura, escolhendo entre transcrições (A. Ycart, F. Jacquemard, J. Bresson)'], ['OMTimePack', 'ritmos por processos de Markov, partição de ataques e pulso variável (Paul Nauert)'], ['OMPitchField', 'conjuntos de classes de altura, campos de alturas, filtros de acordes, vetores e ordenação (Paul Nauert)'], ['OMCS', 'regras de restrição do PWConstraints (motor PMC) e teoria dos conjuntos de classes de altura (Laurson, Sandred)'], ['OMClouds', 'restrições resolvidas por busca local: listas, ciclos e permutações (Charlotte Truchet)'], ['OMLindberg', 'técnicas de acordes de Magnus Lindberg: interpolação, reconstrução por classes, acordes simétricos de doze sons, fundamental virtual (Paulo Raposo)'], ['Infinity', 'a série infinita de Per Nørgård e os seus cânones (Paulo Raposo)'], ['OM-AIS', 'séries de todos os intervalos: as 3856 AIS, invariantes, link-chords, constelação, acordes AIS e contornos melódicos (Paulo Raposo)'], ['MuseScore', 'ler e gravar partituras do MuseScore (.mscx, .mscz), com quartos e oitavos de tom (OM_mscore, A. Vinjar)'], ['MathTools', 'Zn, Lewin, sequências, crivos e cânones (Andreatta, Agon, Amiot, Noll)'], ['LZ', 'modelagem de estilo: aprende peças (MIDI ou vozes) e improvisa no mesmo estilo (G. Assayag, IRCAM)'], ['Morphologie', 'análise, padrões, estruturas, distâncias e classificação de sequências (J. Baboni Schilingi e F. Voisin, IRCAM)'], ['Lenia', 'autômato celular contínuo: criaturas que deslizam, giram e pulsam viram melodias, acordes e ritmos; notas e ritmos passam pela evolução (Bert Chan)'], ['Combine', 'manipulações combinatórias à maneira de Ferneyhough: formas da série, Messiaen, Barraqué, serrotes, Kreuzspiel, espirais, permutação dinâmica (M. Malt, IRCAM)']];
 // as funções do núcleo do OpenMusic 6 (libs/om6): as séries que geram também entram em Gerar
 GEN_TYPES.push(['Séries (OM)', ['arithm-ser', 'geometric-ser', 'fibo-ser', 'prime-ser', 'inharm-ser']]);
+// o Grids (Mutable Instruments) também gera ritmo: entra em Gerar › Ritmo, além de Bibliotecas › Ritmo
+GEN_TYPES.push(['Grids (Mutable Instruments)', ['grids']]);
 const GENERATORS = new Set(GEN_TYPES.flatMap(([, t]) => t));
 /** Básico: as peças de montar um patch (BASIC_MENU) e as funções do núcleo do OM sobre números e listas */
 const OM_FUNCS = ['Valores e funções (OM)', 'Aritmética (OM)', 'Listas (OM)', 'Combinatória (OM)', 'Séries (OM)', 'Conjuntos (OM)', 'Conversões (OM)'];
 /** Processar: o que transforma material que chega pelo cabo, por assunto; cada submenu junta um ou mais grupos */
 const P_SECTIONS = [['Alturas', [['Melodia', ['Melodia (OM)']], ['Acordes e conjuntos', ['Conjuntos', 'Intervalos', 'Euler']], ['Espectral: modulação e distorção', ['Modulação', 'Distorção e deslocamento', 'Outros tratamentos']], ['Profile', ['Profile']]]],
-  ['Ritmo e tempo', [['Ritmo', ['Ritmo (OM)', 'Métrica', 'Ritmo geométrico']], ['Árvores rítmicas (OM)', ['Árvores rítmicas (OM)']], ['OMRC', ['OMRC']]]],
+  ['Ritmo e tempo', [['Ritmo', ['Ritmo (OM)', 'Métrica', 'Ritmo geométrico']], ['Branches (Mutable Instruments)', ['Branches']], ['Árvores rítmicas (OM)', ['Árvores rítmicas (OM)']], ['OMRC', ['OMRC']]]],
   ['Partitura e curvas', [['Partitura (OM)', ['Partitura (OM)']], ['BPF (OM)', ['BPF (OM)']]]]];
 /** Gerar: os grupos de GEN_TYPES juntados por assunto */
-const GEN_MENU = [['Fontes', ['Fontes']], ['Alturas e harmonia', ['Séries harmônicas', 'Modulação', 'Harmonias de Euler']], ['Tonnetz', ['Tonnetz']], ['Séries e melodias', ['Melodia', 'Séries (OM)']], ['Ritmo', ['Métrica', 'Ritmo geométrico', 'Patterns (SuperCollider)']]];
+const GEN_MENU = [['Fontes', ['Fontes']], ['Alturas e harmonia', ['Séries harmônicas', 'Modulação', 'Harmonias de Euler']], ['Tonnetz', ['Tonnetz']], ['Séries e melodias', ['Melodia', 'Séries (OM)']], ['Ritmo', ['Métrica', 'Ritmo geométrico', 'Grids (Mutable Instruments)', 'Patterns (SuperCollider)']]];
 /** Bibliotecas, por assunto (uma biblioteca nova que não esteja aqui aparece em «Outras») */
 const LIB_CATS = [['Alturas e harmonia', ['Esquisse', 'OM-JI', 'Forte', 'MathTools', 'RepMus', 'OMPitchField', 'OMLindberg', 'OM-AIS', 'Infinity', 'Combine', 'Jazz']],
-  ['Ritmo', ['OMTimePack', 'RQ']], ['Restrições', ['Situation', 'OMCS', 'OMClouds']],
+  ['Ritmo', ['OMTimePack', 'RQ', 'Grids', 'Branches']], ['Restrições', ['Situation', 'OMCS', 'OMClouds']],
   ['Acaso, processos e estilo', ['Alea', 'Chaos', 'Matter', 'Lenia', 'Magenta', 'LZ']], ['Análise', ['Morphologie', 'Pareto', 'Filters']],
   ['Partitura e arquivos', ['OMScoreTools', 'MuseScore']], ['Integrações', ['Ableton Live', 'Patterns']]];
 /** submenu que junta vários grupos, cada um com o seu título (um grupo só: os subgrupos dele como títulos) */
@@ -26430,6 +27181,8 @@ function dlgHelp() {
       h('li', { html: '<b>Abas e subpatches:</b> a barra de abas abaixo dos menus guarda vários patches abertos lado a lado (<b>+</b> abre uma nova; duplo clique no nome renomeia). Um <i>subpatch</i> (menu Abstrações) é um patch dentro de um objeto: <b>Abrir ▸</b> edita o conteúdo numa aba; os objetos <i>entrada (inlet)</i> e <i>saída (outlet)</i> lá dentro viram as portas do objeto, da esquerda para a direita. O que você muda na aba do subpatch volta para o objeto no patch pai.' }),
       h('li', { html: '<b>Abstrações:</b> <b>Salvar abstração…</b> guarda um subpatch com nome, neste navegador; o menu Abstrações insere uma cópia quando precisar. Cada inserção é independente (mudar a abstração depois não altera as já inseridas). Para levar ao iPad ou a outro navegador: Abstrações → Exportar / Importar (.json).' }),
       h('li', { html: '<b>Jazz com acordes, sem cifra:</b> os objetos de voicing e o <i>harmonizar</i> aceitam também acordes quaisquer pelo cabo. Eles não são analisados nem ganham função: ficam com as suas próprias notas e intervalos. Onde a cifra falaria em 3ª, 5ª, 7ª, 9ª, vale a posição da nota no acorde, do grave ao agudo; as pilhas de quartas e quintas reordenam as notas do próprio acorde, sem acrescentar nenhuma.' }),
+      h('li', { html: '<b>Grids (Mutable Instruments):</b> em Gerar → Ritmo ou Bibliotecas → Grids, o objeto <i>Grids</i> é o sequenciador de bateria topográfico de Émilie Gillet, portado bit a bit do firmware: X e Y escolhem um ponto num mapa de 25 grooves (bumbo, caixa, chimbal; 32 passos de 1/32), as densidades decidem quantas notas soam, o caos sorteia variações a cada ciclo (ou vira swing). X, Y, caos e densidades aceitam listas, tabelas e LFOs (um valor por ciclo ou por passo). Há também o modo euclidiano do módulo. Saem os acordes das três vozes (para a Partitura e o Live), o ritmo de cada voz (proporções e árvores do OM), os gates e os acentos.' }),
+      h('li', { html: '<b>Branches (Mutable Instruments):</b> em Processar → Ritmo e tempo ou Bibliotecas → Branches, o objeto <i>Branches</i> são os dois portões de Bernoulli de Émilie Gillet, com a regra de decisão do firmware: cada evento que chega pelo cabo (do Grids, de uma voz, de um ritmo…) sai em A ou em B por sorteio, com a chance p (número, lista, tabela ou LFO; um valor por evento ou por compasso), modo toggle (a moeda decide se troca de saída) e latch. Pega só uma altura de cada acorde se quiser (o chimbal do Grids, por exemplo) e troca a altura de cada saída (fechado/aberto); a entrada 2 sem cabo recebe a 1, como no módulo, e o canal 2 também pode receber uma saída do canal 1 (cascata).' }),
       h('li', { html: '<b>Jazz:</b> menu Bibliotecas → Jazz. <i>cifra</i> lê cifras (Dm7, G7b9, Cmaj7#11, F#m7b5, C7alt…) e <i>progressão</i> gera ii-V-I, turnarounds, blues, rhythm changes ou graus escritos à mão numa tonalidade; as duas levam as cifras pelo cabo para os objetos de voicing, que também aceitam cifras digitadas. <i>drop</i> faz fechado, drop 2, drop 3, drop 2 e 4, com inversões e condução de vozes; <i>quartal</i> faz So What, pilhas de quartas justas ou diatônicas e planing; <i>quintas (Kenny Barron)</i> faz as duas pilhas de quintas 1 5 9 | 3 7 11 e pilhas quintais; <i>voicing</i> faz shells, rootless A/B de Bill Evans, abertos e estruturas superiores; <i>harmonizar</i> põe uma melodia em block chords (locked hands, diminutos de passagem de Barry Harris). Cada objeto mostra os voicings no teclado.' }),
       h('li', { html: '<b>Som e aproximação:</b> o playback segue a notação: em ½ tom soa temperado, em ¼ e ⅛ de tom soa na grade correspondente (botões da Partitura; nas prévias, Opções → Notação e som nas prévias). Para ouvir os midicents sem arredondar (entonação justa, espectros), use Opções → Afinação do som → Exata.' }),
       h('li', { html: '<b>Recombinar:</b> análises (<i>virtual-fund</i>, <i>which-dist</i>, <i>closest-harm</i>) têm saída ○ para realimentar geradores.' }),
@@ -26456,6 +27209,8 @@ function dlgAbout() {
     h('p', { text: 'MuseScore: OM_mscore de Anders Vinjar (v0.1.0-beta.1, 2026, github.com/andersvi/OM_mscore). O importador (import-mscx.lisp) roda do código Lisp original, no interpretador OMLISP, com funções do OpenMusic 6 (IRCAM, GPL v3: árvores rítmicas, o construtor de árvores do importador de MusicXML, as escalas microtonais); do exportador (export-mscx.lisp) rodam as partes que não dependem das classes de partitura do OM (grafia das alturas, andamento, dinâmicas, quiálteras, claves, figuras), e o percurso da partitura segue o mesmo formato.' }),
     h('p', { text: 'Funções do OpenMusic 6 (IRCAM, GPL v3): omquantify (o quantificador do PatchWork trazido para o OM, com a correção korrected-kant de Karim Haddad), as árvores rítmicas (reduce-rt, rotateprops, select-tree, subst-rhythm, insert-prop, remove-prop, maketreegroups, group-pulses, n-pulses, get-rest-places, get-leaves, remove-tree-graces) as conversões (mc->f, f->mc, mc->n, n->mc, mc->edo-n, edo-n->mc, ms->ratios) as funções básicas de listas, aritmética, combinatória, séries e conjuntos (last-elem, first-n, expand-lst, mat-trans, list-filter, band-filter, posn-match, om-mean, om-clip, om-random, perturbation, interpolation, sort-list, permutations, geometric-ser, fibo-ser, inharm-ser, prime-ser, x-union, x-intersect, x-diff… 41 ao todo) as funções que faltavam de aritmética e listas (om+, om-, om*, om/, om//, om^, om-log, om-round, om-scale, om-scale^, x-append, flat, group-list, interlock, rotate, arithm-ser, x->dx, dx->x…), as árvores rítmicas restantes (pulsemaker, tietree, reversetree, rotatetree, remove-rests, invert-rhythm, remove-pulses, get-signatures, get-pulse-places), gkant e as funções de BPF (om-sample, x-transfer, y-transfer, bpf-interpol, bpf-scale, bpf-stretch, bpf-offset, bpf-extract, bpf-concat, bpf-crossfade, om-mirror, om-spline, reduce-points, reduce-n-points, interpole-points, point-pairs, com a própria classe BPF do OM) rodam do código Lisp original, no interpretador OMLISP. As funções de partitura (object-dur, true-durations, concat, merger, select, align-chords, chord-filter, chord-band-filter, split-voices, voice->voices, verticalize-pitch, set-obj-pitch, set-obj-vel, set-obj-tempo) seguem a lógica do OM sobre as vozes do OMDamião.' }),
     h('p', { text: 'Lenia: Bert Wang-Chak Chan (2018–2020; github.com/Chakazul/Lenia, licença MIT), o autômato celular contínuo e o catálogo de criaturas (Orbium, Scutium, Gyropteron, Helicium, Circium…). As fórmulas de LeniaND.py (núcleo, crescimento, anéis, o passo de cada geração) foram portadas para JavaScript e conferidas contra o original; as leituras musicais (varredura, centro de massa, regiões) e o tratamento de notas e ritmos são do OMDamião.' }),
+    h('p', { text: 'Grids: Émilie Gillet / Mutable Instruments (módulo Eurorack Grids, 2012; firmware em github.com/pichenettes/eurorack, GPL v3, com a avrlib, github.com/pichenettes/avril). O gerador de padrões (pattern_generator.cc), os 25 nós do mapa e a tabela euclidiana (resources.cc) e o gerador de acaso do avrlib foram portados para JavaScript e conferidos, bit a bit, contra o código C++ original compilado.' }),
+    h('p', { text: 'Branches: Émilie Gillet / Mutable Instruments (módulo Eurorack Branches, 2012; firmware em github.com/pichenettes/eurorack, GPL v3). O gerador de acaso (LFSR de 32 bits), a tabela linear do conversor e a regra de decisão com toggle e latch (branches.cc) foram portados para JavaScript e conferidos contra o código C++ original compilado, com o laço do módulo inteiro.' }),
     h('p', { text: 'Jazz: biblioteca própria do OMDamião (não vem do OpenMusic), com convenções de voicing de Bill Evans, Bud Powell, McCoy Tyner, Kenny Barron, George Shearing e Barry Harris.' }),
     h('p', { text: 'OMScoreTools: Karim Haddad (IRCAM; github.com/openmusic-project/OMScoreTools), funções de voice-bpf.lisp. A exportação para gnuplot foi trocada pelo SVG do próprio editor de BPF.' }),
     h('p', { text: 'Biblioteca Profile: Mikhail Malt & Jacopo Baboni Schilingi (IRCAM, 1994), portada de openmusic-project/Profile.' }),
