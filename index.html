@@ -241,6 +241,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .tbl th, .tbl td { padding: 1px 6px; text-align: right; white-space: nowrap; border-bottom: 1px dashed var(--ink); }
 .tbl th { position: sticky; top: 0; background: var(--paper); border-bottom: var(--frame); }
 .tbl td.l, .tbl th.l { text-align: left; }
+/* MAESTRO: a lista de interpretações (clique escolhe; a escolhida fica invertida) */
+.mae-list { max-height: 260px; }
+.mae-list tbody tr { cursor: pointer; }
+.mae-list th[data-s] { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.mae-list tr.on td { background: var(--ink); color: var(--paper); }
+.mae-list td.mae-c { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+.mae-list td.mae-t { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.mae-stat { white-space: pre-wrap; margin-bottom: 4px; }
+.mae-drop { cursor: pointer; }
+.mae-drop[hidden], .mae-list[hidden], .mae-foot[hidden], .acts[hidden] { display: none; }
+/* random… (escolher): os parâmetros de cada objeto, em colunas, com a caixa de marcar */
+.rnd-dlg { max-height: 50vh; overflow: auto; display: grid; gap: 6px; margin: 6px 0; }
+.rnd-fs { border: 2px solid var(--line); margin: 0; padding: 4px 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 10px; }
+.rnd-fs legend { padding: 0 4px; font-weight: bold; }
+.rnd-row { display: flex; gap: 6px; align-items: center; } .rnd-row.off { opacity: .55; }
+.rnd-dlg input[type=checkbox] { accent-color: var(--ink); }
 
 /* diálogos */
 .dlg-back { position: fixed; inset: 0; background: var(--backdrop); z-index: 9500; display: grid; place-items: center; padding: 16px; }
@@ -8249,8 +8265,8 @@ function staffSVGMeasured(sections, { approx = 4, S = 10, labels = true, sel = n
     for (const st in f.by) for (const n of f.by[st]) {
       const sb = STAVES[st].bottom, cx = f.cx + n.hcol * (headRx * 2 - 1), yy = yOf(st, n.d);
       n.cx = cx; n.y = yy;
-      for (let d = sb - 2; d >= n.d; d -= 2) { const ly = yOf(st, d); g.push(`<line x1="${cx - headRx - S * 0.4}" x2="${cx + headRx + S * 0.4}" y1="${ly}" y2="${ly}" stroke="#000" stroke-width="1"/>`); }
-      for (let d = sb + 10; d <= n.d; d += 2) { const ly = yOf(st, d); g.push(`<line x1="${cx - headRx - S * 0.4}" x2="${cx + headRx + S * 0.4}" y1="${ly}" y2="${ly}" stroke="#000" stroke-width="1"/>`); }
+      for (let d = sb - 2; d >= Math.max(n.d, sb - 40); d -= 2) { const ly = yOf(st, d); g.push(`<line x1="${cx - headRx - S * 0.4}" x2="${cx + headRx + S * 0.4}" y1="${ly}" y2="${ly}" stroke="#000" stroke-width="1"/>`); }
+      for (let d = sb + 10; d <= Math.min(n.d, sb + 50); d += 2) { const ly = yOf(st, d); g.push(`<line x1="${cx - headRx - S * 0.4}" x2="${cx + headRx + S * 0.4}" y1="${ly}" y2="${ly}" stroke="#000" stroke-width="1"/>`); }
       if (f.k === 0) g.push(`<ellipse data-j="${n.j}" cx="${cx}" cy="${yy}" rx="${headRx * 1.15}" ry="${headRy * 1.05}" fill="#fff" stroke="#000" stroke-width="${S * 0.2}"/>`);
       else if (f.k === 1) g.push(`<ellipse data-j="${n.j}" cx="${cx}" cy="${yy}" rx="${headRx * 0.92}" ry="${headRy * 0.82}" transform="rotate(-22 ${cx} ${yy})" fill="#fff" stroke="#000" stroke-width="${S * 0.17}"/>`);
       else g.push(`<ellipse data-j="${n.j}" cx="${cx}" cy="${yy}" rx="${headRx}" ry="${headRy}" transform="rotate(-22 ${cx} ${yy})" fill="#000"/>`);
@@ -8478,8 +8494,8 @@ function staffSVG(sections, { approx = 4, S = 10, labels = true, sel = null, pla
     for (const n of col.notes) {
       const st = STAVES[n.st];
       const cx = col.cx + n.hcol * (headRx * 2 - 1), yy = yOf(n.st, n.d);
-      for (let d = st.bottom - 2; d >= n.d; d -= 2) { const ly = yOf(n.st, d); g.push(`<line x1="${cx - headRx - S * 0.4}" x2="${cx + headRx + S * 0.4}" y1="${ly}" y2="${ly}" stroke="#000" stroke-width="1"/>`); }
-      for (let d = st.bottom + 10; d <= n.d; d += 2) { const ly = yOf(n.st, d); g.push(`<line x1="${cx - headRx - S * 0.4}" x2="${cx + headRx + S * 0.4}" y1="${ly}" y2="${ly}" stroke="#000" stroke-width="1"/>`); }
+      for (let d = st.bottom - 2; d >= Math.max(n.d, st.bottom - 40); d -= 2) { const ly = yOf(n.st, d); g.push(`<line x1="${cx - headRx - S * 0.4}" x2="${cx + headRx + S * 0.4}" y1="${ly}" y2="${ly}" stroke="#000" stroke-width="1"/>`); }
+      for (let d = st.bottom + 10; d <= Math.min(n.d, st.bottom + 50); d += 2) { const ly = yOf(n.st, d); g.push(`<line x1="${cx - headRx - S * 0.4}" x2="${cx + headRx + S * 0.4}" y1="${ly}" y2="${ly}" stroke="#000" stroke-width="1"/>`); }
       g.push(`<ellipse data-j="${n.j}" cx="${cx}" cy="${yy}" rx="${headRx}" ry="${headRy}" transform="rotate(-22 ${cx} ${yy})" fill="#000"/>`);
       if (col.endX && col.endX > cx + headRx + 2) g.push(`<line x1="${cx + headRx}" x2="${col.endX}" y1="${yy}" y2="${yy}" stroke="#000" stroke-width="${Math.max(1.2, S * 0.22)}"/>`);
       if (n.acc) {
@@ -13842,6 +13858,256 @@ function openHelp(type) {
   requestAnimationFrame(() => { if (p.om) requestAnimationFrame(() => omArrange(560)); else { desktop.scrollLeft = 0; desktop.scrollTop = 0; } });
 }
 
+// ════════════════════════════════════════════════════════════════
+//  random: sortear os parâmetros de um objeto (menu do objeto — botão direito ou o dedo parado —, e Editar › Sortear
+//  parâmetros). Só os campos simples do usuário: números (na faixa do rótulo «(0–1)», «%», BPM, semente… ou numa faixa
+//  tirada do valor inicial), menus (uma opção ao acaso), listas de números, de proporções e de alturas (o mesmo tamanho,
+//  dentro da faixa da lista atual). Ficam como estão: as entradas ligadas por cabo, os campos escondidos (o estado interno:
+//  a maquete, o banco de padrões, a escolha do MAESTRO…), as curvas e as regras, o texto livre (títulos, nomes, código
+//  Lisp, comentários) e os campos opcionais vazios. «variação» (0–1): 1 = a faixa inteira; menos que isso, perto do
+//  valor atual (número ± variação × faixa/2; menu trocado com probabilidade = variação). Um passo de desfazer por sorteio.
+// ════════════════════════════════════════════════════════════════
+const RND = (() => {
+  let rng = Math.random, lastV = 1;
+  /** semente fixa (mulberry32) para os testes; sem argumento, volta ao Math.random */
+  const seed = (s) => {
+    if (s == null) { rng = Math.random; return; }
+    let a = s >>> 0;
+    rng = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  };
+  const U = (a, b) => a + (b - a) * rng();
+  const decs = (x) => { const m = /\.(\d+)/.exec(String(x)); return m ? m[1].length : 0; };
+  const toNum = (x) => (typeof x === 'number' ? x : /^\s*-?(\d+\.?\d*|\.\d+)\s*$/.test(String(x ?? '')) ? Number(x) : NaN);
+  // as entradas puras (portas sem campo) não são parâmetros; as de estado interno e as estruturadas ficam
+  const NOTPARAM = new Set(['in', 'any', 'rc']);
+  const INTERNAL = new Set(['hidden', 'numfield', 'bpf', 'rccells', 'rcsigs']);
+  const FREE = /arquivo|\bnome|t[ií]tulo|r[óo]tulo|coment|busca|c[óo]digo|programa|lisp|regra|fun[çc][ãa]o|url|caminho|\bano\b|\bforma\b/i;
+  // o orçamento de uma busca (tempo máximo, limite de passos) não é parâmetro musical: fica
+  const LIMIT = /tempo m[áa]x|timeout|limite de tempo|tempo limite/i;
+  const wired = (n, pid) => graph.cables.some((c) => c.to.n === n.id && c.to.p === pid);
+
+  /** a faixa de um número: { lo, hi, int, step, dec } a partir do rótulo e do valor inicial (d) — ou do atual, sem inicial */
+  // faixas conhecidas, por objeto.parâmetro: os mapas caóticos divergem fora delas (λ > 4 no logístico; λ > 3 no Verhulst)
+  const HINT = { 'kaos.lambda': [2.5, 4], 'verhulst.lambda': [0.5, 3] };
+  function numRange(d, cur, p, mc, n) {
+    const lab = String(p.label || ''), L = `${p.id} ${lab}`.toLowerCase();
+    if (!Number.isFinite(d)) d = Number.isFinite(cur) ? cur : 0;
+    const isInt = Number.isInteger(d) && (!Number.isFinite(cur) || Number.isInteger(cur));
+    const R = (lo, hi, int = isInt, step = 0, dec = null) => ({ lo, hi, int, step, dec: dec ?? (int ? 0 : Math.min(3, Math.max(2, decs(d) + 1))) });
+    // a semente (inteira): qualquer uma; um «seed» com valor fracionário (x inicial de um mapa) segue as outras regras
+    if (/seed|semente/.test(L) && Number.isInteger(d)) return R(1, 99999, true);
+    if (LIMIT.test(lab)) return null;
+    const hk = n && HINT[`${n.type}.${p.id}`]; if (hk) return R(hk[0], hk[1], false, 0, 3);
+    // integração numérica: o passo (dt) só diminui; os sistemas dinâmicos (Chaos) ficam perto dos valores iniciais
+    if (p.id === 'dt' && d > 0) return R(d / 4, d, false, 0, 3);
+    if (n && n.def.group === 'Chaos' && d > 0 && !isInt) return R(d * 0.5, d * 1.5);
+    const m = /\(\s*(-?\d+(?:[.,]\d+)?)\s*[–-]\s*(-?\d+(?:[.,]\d+)?)/.exec(lab);
+    if (m) { const lo = +m[1].replace(',', '.'), hi = +m[2].replace(',', '.'); if (hi > lo) return R(lo, hi, isInt && hi - lo >= 2); }
+    if (/%/.test(lab)) return R(0, 100);
+    if (/\bbpm\b|andamento|tempo ♩/.test(L)) return R(40, 240, true);
+    if (mc || /midicent/.test(L) || (d >= 2400 && d <= 12000 && d % 100 === 0)) { const c = d || cur || 6000; return R(Math.max(0, c - 2400), c + 2400, true, 100); }
+    if (d === 0) {
+      if (!isInt) return R(0, 1);
+      if (/\bms\b/.test(L)) return R(0, 1000, true, 10);
+      if (/cents|¢/.test(L)) return R(0, 1200, true, 50);
+      if (/\(s\b|\bs\b|segundo/.test(L)) return R(0, 10, false, 0, 1);
+      return R(0, 8, true);
+    }
+    if (d > 0) return isInt ? R(1, Math.max(2, 2 * d)) : R(d / 10, 2 * d);
+    return R(2 * d, -2 * d);
+  }
+  /** um valor novo na faixa: v = 1, ao acaso na faixa; menos, perto do atual */
+  function pickNum(cur, r, v) {
+    let x;
+    if (v >= 1 || !Number.isFinite(cur)) x = U(r.lo, r.hi);
+    else {
+      // perto do atual: ± variação × faixa/2 (um inteiro pode andar ao menos um passo, para a variação pequena não ficar parada)
+      const lo = Math.min(r.lo, cur), hi = Math.max(r.hi, cur), w = Math.max(v * (r.hi - r.lo) / 2, v > 0 && r.int ? (r.step || 1) : 0);
+      x = Math.min(hi, Math.max(lo, cur + (rng() * 2 - 1) * w));
+    }
+    if (r.step) x = Math.round(x / r.step) * r.step;
+    if (r.int) x = Math.round(x);
+    x = Math.min(Math.max(x, Math.min(r.lo, Number.isFinite(cur) ? cur : r.lo)), Math.max(r.hi, Number.isFinite(cur) ? cur : r.hi));
+    return r.int ? x : +x.toFixed(r.dec);
+  }
+
+  // listas: os separadores ficam; cada pedaço é número, proporção (a/b) ou altura (C4, F#3+50); outra coisa = texto livre
+  const NUM = /^-?(\d+\.?\d*|\.\d+)$/, FRAC = /^-?\d+\/\d+$/, PITCH = /^([A-Ga-g])(#|b|x|bb)?(-?\d)([+-]\d+)?$/;
+  /** uma lista em ordem (crescente ou decrescente, 3 ou mais: inícios, um acorde de baixo para cima) sai na mesma ordem */
+  const keepOrder = (ix, old, nw) => {
+    if (old.length < 3) return nw;
+    const up = old.every((x, k) => !k || x >= old[k - 1]), dn = old.every((x, k) => !k || x <= old[k - 1]);
+    return up && !dn ? nw.slice().sort((a, b) => a - b) : dn && !up ? nw.slice().sort((a, b) => b - a) : nw;
+  };
+  function listRand(s, p, v, onlyNums, n) {
+    const parts = String(s).split(/([\s;,]+)/), idx = { n: [], f: [], p: [] };
+    for (let i = 0; i < parts.length; i += 2) {
+      const t = parts[i]; if (t === '') continue;
+      if (NUM.test(t)) idx.n.push(i); else if (FRAC.test(t)) idx.f.push(i); else if (PITCH.test(t)) idx.p.push(i); else return { skip: 'texto' };
+    }
+    if (!idx.n.length && !idx.f.length && !idx.p.length) return { skip: 'vazio' };
+    if (onlyNums && idx.p.length) return { skip: 'altura' };
+    const mcHint = p.t === 'chords' || p.t === 'pitch' || p.t === 'opitch' || /midic|altura|acorde|notas?\b/i.test(p.label || '');
+    // números: na faixa da lista (um só número: a faixa de um campo numérico); inteiros ficam inteiros, no passo comum
+    if (idx.n.length) {
+      const vals = idx.n.map((i) => Number(parts[i])), lo = Math.min(...vals), hi = Math.max(...vals), allInt = vals.every(Number.isInteger);
+      // uma permutação (inteiros diferentes, seguidos: 1 2 3 4 5 6, as posições 0…5): embaralha — continua permutação
+      if (allInt && vals.length >= 3 && new Set(vals).size === vals.length && hi - lo === vals.length - 1) {
+        const nw = vals.slice();
+        for (let k = nw.length - 1; k > 0; k--) { if (v < 1 && rng() >= v) continue; const j = Math.floor(rng() * (k + 1)); [nw[k], nw[j]] = [nw[j], nw[k]]; }
+        nw.forEach((x, k) => { parts[idx.n[k]] = String(x); });
+        idx.n.length = 0;
+      }
+    }
+    if (idx.n.length) {
+      const vals = idx.n.map((i) => Number(parts[i])), lo = Math.min(...vals), hi = Math.max(...vals), allInt = vals.every(Number.isInteger);
+      const mc = mcHint && allInt && vals.every((x) => x >= 1200);
+      let r;
+      if (hi > lo && !(mc && hi - lo < 100)) {
+        const step = allInt ? [100, 50, 25, 10, 5, 1].find((k) => (k === 1 || hi >= 100 || mc) && vals.every((x) => x % k === 0)) : 0;
+        r = { lo, hi, int: allInt, step, dec: allInt ? 0 : Math.max(...vals.map(decs)) || 2 };
+      } else { const d0 = toNum(p.def); r = numRange(Number.isFinite(d0) ? d0 : lo, lo, p, mc, n); if (!r) return { skip: 'limite' }; }   // um número só: a faixa vem do valor inicial (não anda a cada sorteio)
+      if (lo >= 0) r.lo = Math.max(0, r.lo);
+      if (lo > 0 && r.lo === 0 && r.int) r.lo = r.step || 1;
+      keepOrder(idx.n, vals, idx.n.map((i) => pickNum(Number(parts[i]), r, v))).forEach((x, k) => { parts[idx.n[k]] = String(x); });
+    }
+    // proporções: com duas ou mais diferentes, cada uma sorteada entre as da lista; com uma só, o numerador muda
+    if (idx.f.length) {
+      const toks = idx.f.map((i) => parts[i]), dist = [...new Set(toks)];
+      idx.f.forEach((i) => {
+        if (v < 1 && rng() >= v) return;
+        if (dist.length > 1) parts[i] = dist[Math.floor(rng() * dist.length)];
+        else { const [a, b] = parts[i].split('/'), sg = a.startsWith('-') ? '-' : '', k = Math.abs(+a); parts[i] = `${sg}${1 + Math.floor(rng() * Math.max(2, 2 * k))}/${b}`; }
+      });
+    }
+    // alturas: na faixa da lista (uma só: uma oitava para cada lado), no semitom (ou no passo que a lista já usa)
+    if (idx.p.length) {
+      const vals = idx.p.map((i) => parsePitch(parts[i])), lo = Math.min(...vals), hi = Math.max(...vals);
+      const step = vals.every((x) => x % 100 === 0) ? 100 : vals.every((x) => x % 50 === 0) ? 50 : 1;
+      const r = hi > lo ? { lo, hi, int: true, step } : { lo: Math.max(1200, lo - 1200), hi: Math.min(12000, lo + 1200), int: true, step };
+      keepOrder(idx.p, vals, vals.map((x) => pickNum(x, r, v))).forEach((x, k) => { parts[idx.p[k]] = name12(x); });
+    }
+    return { val: parts.join('') };
+  }
+
+  /** o que fazer com o parâmetro p do objeto n: { val } (o valor novo), { skip: motivo } ou null (não é parâmetro) */
+  function planParam(n, p, o) {
+    const v = o.v ?? 1, cur = n.params[p.id];
+    if (n.def.slider && p.id === 'v') {
+      const lo = toNum(n.params.min), hi = toNum(n.params.max), st = toNum(n.params.step);
+      if (!(hi > lo)) return { skip: 'interno' };
+      let x = pickNum(toNum(cur), { lo, hi, int: false, step: 0, dec: 6 }, v);
+      if (st > 0) x = +(lo + Math.round((x - lo) / st) * st).toFixed(6);
+      return { val: String(Math.min(hi, Math.max(lo, x))) };
+    }
+    if (NOTPARAM.has(p.t)) return null;
+    if (n.def.note) return { skip: 'texto' };
+    if (INTERNAL.has(p.t)) return { skip: 'interno' };
+    if (PORTED(p.t) && wired(n, p.id)) return { skip: 'ligado' };
+    if (p.t === 'sel') {
+      if (o.onlyNums) return { skip: 'menu' };
+      const opts = (p.opts || []).filter(([val, lab]) => !/…|\.\.\.|arquivo/i.test(`${lab ?? ''}`) && String(val) !== String(cur));
+      if (!opts.length) return { skip: 'interno' };
+      if (v < 1 && rng() >= v) return { val: cur, same: true };
+      return { val: opts[Math.floor(rng() * opts.length)][0] };
+    }
+    if (p.t === 'num') {
+      const c = toNum(cur);
+      if (!Number.isFinite(c)) { if (String(cur ?? '').trim() === '') return { skip: 'vazio' }; return listRand(cur, p, v, o.onlyNums, n); }
+      const r = numRange(toNum(p.def), c, p, false, n); if (!r) return { skip: 'limite' };
+      return { val: String(pickNum(c, r, v)) };
+    }
+    if (['nums', 'text', 'area', 'chords', 'pitch', 'opitch', 'expr'].includes(p.t)) {
+      if (String(cur ?? '').trim() === '') return { skip: 'vazio' };
+      if (n.def.note || (p.t !== 'nums' && FREE.test(`${p.id} ${p.label}`))) return { skip: 'texto' };
+      return listRand(cur, p, v, o.onlyNums, n);
+    }
+    return { skip: 'interno' };
+  }
+
+  /** o plano de um objeto: [{ p, val }] e os que ficam [{ p, why }] */
+  function plan(n, o = {}) {
+    const ch = [], kept = [];
+    for (const p of n.def.ins) {
+      if (o.pick && !o.pick.has(p.id)) continue;
+      const r = planParam(n, p, o); if (!r) continue;
+      if (r.skip) { kept.push({ p, why: r.skip }); continue; }
+      if (r.same || String(r.val) === String(n.params[p.id])) { ch.push({ p, val: n.params[p.id], same: true }); continue; }
+      ch.push({ p, val: r.val });
+    }
+    // um objeto com entradas variáveis (dyn): o sorteio não pode mudar as entradas
+    const D = DEFS[n.type];
+    if (D?.dyn) {
+      const sig = (d) => d.ins.map((q) => q.id).join(' ');
+      for (const c of ch) { if (c.same) continue; const tp = { ...n.params, [c.p.id]: c.val }; if (sig(D.dyn(tp)) !== sig(n.def)) { c.same = true; c.val = n.params[c.p.id]; kept.push({ p: c.p, why: 'interno' }); } }
+    }
+    return { ch: ch.filter((c) => !kept.some((k) => k.p === c.p)), kept };
+  }
+
+  const PL = { limite: 'limites', ligado: 'ligados', texto: 'textos', interno: 'internos', vazio: 'vazios', menu: 'menus', altura: 'alturas' };
+  const pl = (k, w, s) => `${k} ${k === 1 ? w : s}`;
+  /** sorteia os objetos ns (um passo de desfazer, uma avaliação); o: { v: 0–1, onlyNums, pick: Map(id → Set(pids)) } */
+  function run(ns, o = {}) {
+    ns = (ns || []).filter(isLive);
+    if (!ns.length) { flash('random: nenhum objeto'); return null; }
+    const v = Math.max(0, Math.min(1, o.v ?? 1));
+    const P = ns.map((n) => ({ n, ...plan(n, { v, onlyNums: o.onlyNums, pick: o.pick?.get(n.id) || (o.pick ? new Set() : null) }) }));
+    const nCh = P.reduce((s, x) => s + x.ch.length, 0), nReal = P.reduce((s, x) => s + x.ch.filter((c) => !c.same).length, 0);
+    const kc = {}; P.forEach((x) => x.kept.forEach((k) => { kc[k.why] = (kc[k.why] || 0) + 1; }));
+    const keptTxt = Object.entries(kc).map(([w, k]) => `${k} ${k === 1 ? w : PL[w] || w}`).join(', ');
+    const detail = P.filter((x) => x.kept.length).map((x) => `${x.n.def.title}: ${x.kept.map((k) => `${k.p.label} (${k.why})`).join(', ')}`).join('; ');
+    const msg = `random: ${pl(nCh, 'parâmetro sorteado', 'parâmetros sorteados')}${ns.length > 1 ? ` em ${ns.length} objetos` : ''}${keptTxt ? ` (${keptTxt} ${Object.values(kc).reduce((a, b) => a + b, 0) === 1 ? 'mantido' : 'mantidos'})` : ''}${detail ? ` · ${detail}` : ''}`;
+    if (nReal) {
+      pushUndo();
+      for (const { n, ch } of P) for (const c of ch) {
+        if (c.same) continue;
+        n.params[c.p.id] = c.val;
+        const r = n.ui.rows?.[c.p.id]; if (r && r.field && r.field.tagName !== 'SPAN') r.field.value = c.val;
+        if (n.def.slider && c.p.id === 'v') { const a = n.el.querySelector('input[aria-label=valor]'), b = n.el.querySelector('input[type=range]'); if (a) a.value = c.val; if (b) b.value = c.val; }
+      }
+      evaluate(); drawCables(); save();
+    }
+    flash(nCh ? msg : `random: nada a sortear${keptTxt ? ` (${keptTxt})` : ''}${detail ? ` · ${detail}` : ''}`);
+    return { n: nCh, changed: nReal, kept: kc, msg, plans: P.map((x) => ({ id: x.n.id, ch: x.ch.map((c) => [c.p.id, c.val]), kept: x.kept.map((k) => [k.p.id, k.why]) })) };
+  }
+
+  /** «random… (escolher)»: os parâmetros de cada objeto com caixas de marcar e a variação (%); «Sortear» pode repetir */
+  function dlg(ns) {
+    ns = (ns || []).filter(isLive); if (!ns.length) return;
+    const boxes = [], body = h('div', { class: 'rnd-dlg' });
+    for (const n of ns) {
+      const { ch, kept } = plan(n, { v: 1 });
+      const all = [...ch.map((c) => ({ p: c.p })), ...kept].sort((a, b) => n.def.ins.indexOf(a.p) - n.def.ins.indexOf(b.p));
+      const fs = h('fieldset', { class: 'rnd-fs' }, h('legend', { text: ns.length > 1 ? `${n.def.title} (${n.id})` : n.def.title }));
+      if (!all.length) fs.append(h('p', { class: 'gdesc', text: 'nenhum parâmetro' }));
+      for (const it of all) {
+        const c = h('input', { type: 'checkbox', 'data-n': n.id, 'data-p': it.p.id });
+        c.checked = !it.why; c.disabled = !!it.why;
+        if (!it.why) boxes.push(c);
+        fs.append(h('label', { class: 'rnd-row' + (it.why ? ' off' : '') }, c, h('span', { text: `${it.p.label}${it.why ? ` — ${it.why}` : ''}` })));
+      }
+      body.append(fs);
+    }
+    const pct = h('input', { type: 'number', min: '0', max: '100', step: '1', value: String(Math.round(lastV * 100)), 'aria-label': 'variação %', style: 'width:5em' });
+    const info = h('p', { class: 'gdesc', role: 'status' });
+    const go = () => {
+      const pick = new Map(ns.map((n) => [n.id, new Set()]));
+      boxes.forEach((c) => { if (c.checked && pick.has(c.dataset.n)) pick.get(c.dataset.n).add(c.dataset.p); });
+      lastV = Math.max(0, Math.min(100, Number(pct.value) || 0)) / 100;
+      const r = run(ns, { v: lastV, pick }); info.textContent = r ? r.msg : '';
+    };
+    dialog(ns.length > 1 ? `random… (${ns.length} objetos)` : `random… — ${ns[0].def.title}`,
+      h('p', { class: 'gdesc', text: 'Marque os parâmetros a sortear. Variação 100% = a faixa inteira; menos que isso, perto do valor atual (os menus mudam com essa probabilidade). Cada sorteio é um passo de desfazer.' }),
+      body,
+      h('div', { class: 'acts' }, h('label', { class: 'rnd-row' }, h('span', { text: 'variação %' }), pct),
+        h('button', { class: 'gb', text: 'todos', onclick: () => boxes.forEach((c) => { c.checked = true; }) }),
+        h('button', { class: 'gb', text: 'nenhum', onclick: () => boxes.forEach((c) => { c.checked = false; }) })),
+      info,
+      h('div', { class: 'acts' }, h('button', { class: 'gb def', text: 'Sortear', 'data-act': 'rnd-go', onclick: go }), h('button', { class: 'gb', text: 'Fechar', onclick: closeDialog })));
+  }
+
+  return { seed, run, plan, dlg, numRange, listRand, get v() { return lastV; } };
+})();
 /** menu do objeto: botão direito, ou dois toques na tela de toque */
 function nodeMenu(n, x, y) {
   closeMenus();
@@ -13855,6 +14121,12 @@ function nodeMenu(n, x, y) {
         { label: `Copiar${what}`, act: use(() => copySel()) },
         { label: `Recortar${what}`, act: use(() => cutSel()) },
         { label: `Duplicar${what}`, act: use(() => duplicateSel()) },
+        { sep: true },
+        // random: sortear os parâmetros (com a janela numa seleção de vários, os de todos; um passo de desfazer)
+        { label: `random — sortear todos os parâmetros${what}`, act: () => RND.run(ns()) },
+        { label: `random (só os números)${what}`, act: () => RND.run(ns(), { onlyNums: true }) },
+        { label: `random… (escolher)${what}`, act: () => RND.dlg(ns()) },
+        { sep: true },
         { label: 'Colar', act: () => pasteSel({ askSystem: true }) },
         { label: selected.has(n) ? 'Tirar da seleção' : 'Juntar à seleção', act: () => { if (selected.has(n)) selDel(n); else { if (!selected.size && focused && focused !== n && graph.nodes.get(focused.id) === focused) selAdd(focused); selAdd(n); } selInfo(); } },
         { sep: true },
@@ -32701,6 +32973,1062 @@ let MQ_CLIP = null;
   };
 }
 
+// ════════════════════════════════════════════════════════════════
+//  MAESTRO — o motor dos objetos «maestro», «maestro-analise» e «maestro-modelo» (sem tela: roda também no node).
+//  O dataset MAESTRO v3.0.0 (Hawthorne et al., ICLR 2019; Google, CC BY-NC-SA 4.0): 1276 interpretações de piano
+//  gravadas num Yamaha Disklavier no International Piano-e-Competition. A página NÃO traz nada do dataset: quem usa abre
+//  o maestro-v3.0.0-midi.zip (ou a pasta extraída, ou arquivos soltos), e tudo é lido aqui, no navegador.
+//  - ZIP: o diretório central e, por arquivo, só quando pedido (DecompressionStream 'deflate-raw'; sem ela, o inflate
+//    embutido, RFC 1951, à maneira do puff.c de Mark Adler);
+//  - metadados: maestro-v3.0.0.json (colunas do pandas) ou maestro-v3.0.0.csv; filtros e ordenação;
+//  - MIDI: notas com velocidade, pedais (CC64 sustain, CC66 sostenuto, CC67 una corda), mapa de tempo; o pedal de
+//    sustain prolonga as notas como no Magenta (sequences_lib.apply_sustain_control_changes);
+//  - análise: classes de altura, registro, velocidade, IOI, densidade, acordes, intervalos, pedal, durações;
+//  - modelos: cadeia de Markov de ordem variável (com recuo), temperatura e semente; um modelo de interpretação
+//    (curva de dinâmica e desvios de tempo aprendidos do corpus) que «humaniza» qualquer voz.
+// ════════════════════════════════════════════════════════════════
+/** o motor numa função com nome: a mesma fonte roda num Worker (maestroEngine.toString()), para não prender a tela */
+function maestroEngine() {
+  const URL_ZIP = 'https://storage.googleapis.com/magentadata/datasets/maestro/v3.0.0/maestro-v3.0.0-midi.zip';
+  const ZIP_NAME = 'maestro-v3.0.0-midi.zip';
+
+  // ───────────────────────── inflate (RFC 1951), para quando não há DecompressionStream ─────────────────────────
+  const LBASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
+  const LEXT = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
+  const DBASE = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
+  const DEXT = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
+  const CLORD = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+  function huff(lens, n) {
+    const count = new Uint16Array(16), offs = new Uint16Array(16), sym = new Uint16Array(n);
+    for (let i = 0; i < n; i++) count[lens[i]]++;
+    count[0] = 0; for (let i = 1; i < 16; i++) offs[i] = offs[i - 1] + count[i - 1];
+    for (let i = 0; i < n; i++) if (lens[i]) sym[offs[lens[i]]++] = i;
+    return { count, sym };
+  }
+  let FIXED = null;
+  function inflateRaw(src, size = 0) {
+    let out = new Uint8Array(Math.max(1024, size || src.length * 4)), op = 0, pos = 0, bb = 0, bc = 0;
+    const bits = (n) => { while (bc < n) { if (pos >= src.length) throw new Error('deflate: o arquivo acaba antes da hora'); bb |= src[pos++] << bc; bc += 8; } const v = bb & ((1 << n) - 1); bb >>>= n; bc -= n; return v; };
+    const room = (k) => { if (op + k <= out.length) return; const o = new Uint8Array(Math.max(out.length * 2, op + k)); o.set(out.subarray(0, op)); out = o; };
+    const decode = (h) => { let code = 0, first = 0, index = 0; for (let len = 1; len < 16; len++) { code |= bits(1); const c = h.count[len]; if (code - c < first) return h.sym[index + (code - first)]; index += c; first += c; first <<= 1; code <<= 1; } throw new Error('deflate: código inválido'); };
+    const codes = (lc, dc) => {
+      for (;;) {
+        let s = decode(lc);
+        if (s < 256) { room(1); out[op++] = s; continue; }
+        if (s === 256) return;
+        s -= 257; if (s >= 29) throw new Error('deflate: comprimento inválido');
+        const len = LBASE[s] + bits(LEXT[s]), ds = decode(dc); if (ds >= 30) throw new Error('deflate: distância inválida');
+        const dist = DBASE[ds] + bits(DEXT[ds]); if (dist > op) throw new Error('deflate: distância antes do começo');
+        room(len); for (let k = 0; k < len; k++, op++) out[op] = out[op - dist];
+      }
+    };
+    let last;
+    do {
+      last = bits(1); const type = bits(2);
+      if (type === 0) {
+        bb = 0; bc = 0; if (pos + 4 > src.length) throw new Error('deflate: bloco guardado incompleto');
+        const len = src[pos] | (src[pos + 1] << 8), nlen = src[pos + 2] | (src[pos + 3] << 8); pos += 4;
+        if (len !== (~nlen & 0xffff)) throw new Error('deflate: bloco guardado estragado');
+        if (pos + len > src.length) throw new Error('deflate: o arquivo acaba antes da hora');
+        room(len); out.set(src.subarray(pos, pos + len), op); op += len; pos += len;
+      } else if (type === 1) {
+        if (!FIXED) { const l = new Uint8Array(288); l.fill(8, 0, 144); l.fill(9, 144, 256); l.fill(7, 256, 280); l.fill(8, 280, 288); FIXED = [huff(l, 288), huff(new Uint8Array(30).fill(5), 30)]; }
+        codes(FIXED[0], FIXED[1]);
+      } else if (type === 2) {
+        const nlen = bits(5) + 257, ndist = bits(5) + 1, ncode = bits(4) + 4, cl = new Uint8Array(19);
+        for (let i = 0; i < ncode; i++) cl[CLORD[i]] = bits(3);
+        const ch = huff(cl, 19), lens = new Uint8Array(nlen + ndist);
+        for (let i = 0; i < nlen + ndist;) {
+          const s = decode(ch);
+          if (s < 16) { lens[i++] = s; continue; }
+          let rep = 0, val = 0;
+          if (s === 16) { if (!i) throw new Error('deflate: repetição sem anterior'); val = lens[i - 1]; rep = 3 + bits(2); } else if (s === 17) rep = 3 + bits(3); else rep = 11 + bits(7);
+          if (i + rep > nlen + ndist) throw new Error('deflate: comprimentos demais');
+          while (rep--) lens[i++] = val;
+        }
+        codes(huff(lens.subarray(0, nlen), nlen), huff(lens.subarray(nlen), ndist));
+      } else throw new Error('deflate: tipo de bloco inválido');
+    } while (!last);
+    return out.subarray(0, op);
+  }
+  /** descompacta (deflate cru): o DecompressionStream do navegador; sem ele (ou se falhar por falta de suporte), o inflate daqui */
+  const OPT = { native: true };
+  async function inflate(raw, size) {
+    if (OPT.native && typeof DecompressionStream !== 'undefined' && typeof Response !== 'undefined' && typeof Blob !== 'undefined') {
+      let ds = null; try { ds = new DecompressionStream('deflate-raw'); } catch (e) { ds = null; }
+      if (ds) return new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(ds)).arrayBuffer());
+    }
+    return inflateRaw(raw, size);
+  }
+
+  // ───────────────────────── ZIP: o diretório central; cada arquivo só quando pedido ─────────────────────────
+  const u16 = (b, p) => b[p] | (b[p + 1] << 8), u32 = (b, p) => (b[p] | (b[p + 1] << 8) | (b[p + 2] << 16) | (b[p + 3] << 24)) >>> 0;
+  const u64 = (b, p) => u32(b, p) + u32(b, p + 4) * 4294967296;
+  const asBlob = (src) => (typeof Blob !== 'undefined' && src instanceof Blob ? src : new Blob([src instanceof Uint8Array ? src : new Uint8Array(src)]));
+  const sliceU8 = async (blob, a, b) => new Uint8Array(await blob.slice(a, b).arrayBuffer());
+  async function zipOpen(src) {
+    const blob = asBlob(src), size = blob.size;
+    if (size < 22) throw new Error('não é um arquivo zip');
+    const t0 = Math.max(0, size - 65557), tail = await sliceU8(blob, t0, size);
+    let e = tail.length - 22; while (e >= 0 && u32(tail, e) !== 0x06054b50) e--;
+    if (e < 0) throw new Error('não é um arquivo zip (sem o diretório central)');
+    let count = u16(tail, e + 10), cdSize = u32(tail, e + 12), cdOff = u32(tail, e + 16);
+    if ((count === 0xffff || cdOff === 0xffffffff || cdSize === 0xffffffff) && e >= 20 && u32(tail, e - 20) === 0x07064b50) {
+      const z = u64(tail, e - 20 + 8), r = await sliceU8(blob, z, z + 56);
+      if (u32(r, 0) !== 0x06064b50) throw new Error('zip64 estragado');
+      count = u64(r, 32); cdSize = u64(r, 40); cdOff = u64(r, 48);
+    }
+    if (cdOff + cdSize > size) throw new Error('o zip está incompleto (o diretório central passa do fim do arquivo)');
+    const cd = await sliceU8(blob, cdOff, cdOff + cdSize), entries = new Map(), td = new TextDecoder();
+    let p = 0;
+    for (let i = 0; i < count && p + 46 <= cd.length; i++) {
+      if (u32(cd, p) !== 0x02014b50) throw new Error('zip estragado (diretório central)');
+      const method = u16(cd, p + 10), nlen = u16(cd, p + 28), xlen = u16(cd, p + 30), clen = u16(cd, p + 32);
+      let csize = u32(cd, p + 20), usize = u32(cd, p + 24), lho = u32(cd, p + 42);
+      const name = td.decode(cd.subarray(p + 46, p + 46 + nlen));
+      // zip64: os tamanhos e o deslocamento que não couberam vêm no campo extra 0x0001
+      if (csize === 0xffffffff || usize === 0xffffffff || lho === 0xffffffff) {
+        let q = p + 46 + nlen; const qe = q + xlen;
+        while (q + 4 <= qe) { const id = u16(cd, q), l = u16(cd, q + 2); if (id === 1) { let r = q + 4; if (usize === 0xffffffff) { usize = u64(cd, r); r += 8; } if (csize === 0xffffffff) { csize = u64(cd, r); r += 8; } if (lho === 0xffffffff) lho = u64(cd, r); break; } q += 4 + l; }
+      }
+      if (!name.endsWith('/')) entries.set(name, { name, method, csize, usize, lho });
+      p += 46 + nlen + xlen + clen;
+    }
+    async function read(name) {
+      const en = entries.get(name); if (!en) throw new Error(`o zip não tem ${name}`);
+      const h = await sliceU8(blob, en.lho, en.lho + 30);
+      if (u32(h, 0) !== 0x04034b50) throw new Error(`zip estragado (${name})`);
+      const start = en.lho + 30 + u16(h, 26) + u16(h, 28), raw = await sliceU8(blob, start, start + en.csize);
+      if (en.method === 0) return raw;
+      if (en.method !== 8) throw new Error(`${name}: compressão ${en.method} não suportada (só guardado e deflate)`);
+      const out = await inflate(raw, en.usize);
+      if (out.length !== en.usize) throw new Error(`${name}: o tamanho descompactado não confere`);
+      return out;
+    }
+    return { kind: 'zip', size, names: [...entries.keys()], entries, read };
+  }
+  /** arquivos soltos (uma pasta, ou .midi + o csv/json): { caminho: Blob } → a mesma interface do zip */
+  function filesOpen(map) {
+    const names = Object.keys(map);
+    return { kind: 'files', size: names.reduce((s, k) => s + (map[k].size || 0), 0), names, read: async (name) => { const b = map[name]; if (!b) throw new Error(`falta o arquivo ${name}`); return new Uint8Array(await b.arrayBuffer()); } };
+  }
+
+  // ───────────────────────── metadados ─────────────────────────
+  function parseCSV(text) {
+    const rows = []; let row = [], f = '', q = false, i = 0;
+    text = String(text).replace(/^﻿/, '');
+    while (i < text.length) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i += 2; continue; } q = false; i++; continue; } f += c; i++; continue; }
+      if (c === '"') { q = true; i++; continue; }
+      if (c === ',') { row.push(f); f = ''; i++; continue; }
+      if (c === '\r') { i++; continue; }
+      if (c === '\n') { row.push(f); rows.push(row); row = []; f = ''; i++; continue; }
+      f += c; i++;
+    }
+    if (f !== '' || row.length) { row.push(f); rows.push(row); }
+    const head = (rows.shift() || []).map((s) => s.trim());
+    return rows.filter((r) => r.length > 1 || (r[0] || '').trim()).map((r) => Object.fromEntries(head.map((k, j) => [k, r[j] ?? ''])));
+  }
+  const FIELDS = ['canonical_composer', 'canonical_title', 'split', 'year', 'midi_filename', 'audio_filename', 'duration'];
+  function normRow(o, i) {
+    const midi = String(o.midi_filename || '').trim();
+    return { i, id: midi, composer: String(o.canonical_composer ?? '').trim() || 'desconhecido', title: String(o.canonical_title ?? '').trim() || midi.split('/').pop(),
+      split: String(o.split ?? '').trim(), year: Number(o.year) || null, midi, audio: String(o.audio_filename || ''), dur: Number(o.duration) > 0 ? Number(o.duration) : null };
+  }
+  /** maestro-v3.0.0.json (as colunas do pandas: { campo: { "0": valor, … } }) ou uma lista de objetos */
+  function rowsFromJSON(obj) {
+    if (Array.isArray(obj)) return obj.map(normRow).filter((r) => r.midi);
+    if (!obj || typeof obj !== 'object' || !obj.midi_filename) throw new Error('o JSON não parece ser o maestro-v3.0.0.json (falta midi_filename)');
+    const keys = Object.keys(obj.midi_filename).sort((a, b) => Number(a) - Number(b));
+    return keys.map((k, i) => normRow(Object.fromEntries(FIELDS.map((f) => [f, obj[f]?.[k]])), i)).filter((r) => r.midi);
+  }
+  function rowsFromCSV(text) {
+    const L = parseCSV(text);
+    if (!L.length || !('midi_filename' in L[0])) throw new Error('o CSV não parece ser o maestro-v3.0.0.csv (falta a coluna midi_filename)');
+    return L.map(normRow).filter((r) => r.midi);
+  }
+  const isMidi = (nm) => /\.midi?$/i.test(nm);
+  /** o catálogo de uma fonte (zip ou arquivos): as linhas e onde está o .midi de cada uma */
+  async function catalog(src) {
+    const names = src.names, td = new TextDecoder();
+    const meta = names.find((x) => /(^|\/)maestro-v[\d.]+\.json$/i.test(x)) || names.find((x) => /\.json$/i.test(x) && /maestro/i.test(x));
+    const csv = names.find((x) => /(^|\/)maestro-v[\d.]+\.csv$/i.test(x)) || names.find((x) => /\.csv$/i.test(x));
+    let rows = null, from = '';
+    if (meta) { try { rows = rowsFromJSON(JSON.parse(td.decode(await src.read(meta)))); from = meta.split('/').pop(); } catch (e) { rows = null; } }
+    if (!rows && csv) { rows = rowsFromCSV(td.decode(await src.read(csv))); from = csv.split('/').pop(); }
+    const mids = names.filter(isMidi), base = new Map(); mids.forEach((x) => { const b = x.split('/').pop(); if (!base.has(b)) base.set(b, x); });
+    const dir = (meta || csv || '').replace(/[^/]*$/, '');
+    const where = (m) => (names.includes(dir + m) ? dir + m : names.includes(m) ? m : mids.find((x) => x.endsWith('/' + m)) || base.get(m.split('/').pop()) || null);
+    if (!rows) {
+      // sem metadados: cada .midi é uma linha, com o que o caminho diz (o ano pela pasta)
+      rows = mids.map((x, i) => { const y = /(?:^|\/)((?:19|20)\d\d)\//.exec(x); return normRow({ midi_filename: x, canonical_title: x.split('/').pop().replace(/\.midi?$/i, ''), year: y ? y[1] : '' }, i); });
+      from = 'só os arquivos .midi (sem o csv/json)';
+    }
+    const path = new Map(); let missing = 0;
+    rows.forEach((r) => { const w = where(r.midi); if (w) path.set(r.id, w); else missing++; });
+    return { rows, path, from, missing, nMidi: mids.length, hours: rows.reduce((s, r) => s + (r.dur || 0), 0) / 3600 };
+  }
+
+  // ───────────────────────── filtros e ordenação ─────────────────────────
+  const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  /** anos: «2018», «2004-2009», «2004 2006 2008» */
+  function yearsOf(txt) {
+    const t = String(txt ?? '').trim(); if (!t) return null;
+    const out = []; t.split(/[\s,;]+/).filter(Boolean).forEach((p) => { const m = /^(\d{4})\s*[-–]\s*(\d{4})$/.exec(p); if (m) out.push([+m[1], +m[2]]); else if (/^\d{4}$/.test(p)) out.push([+p, +p]); });
+    return out.length ? out : null;
+  }
+  function matchComposer(r, comp) {
+    const c = String(comp ?? '').trim(); if (!c) return true;
+    if (r.composer === c) return true;
+    return norm(r.composer).includes(norm(c));
+  }
+  /** f: { comp, titulo, ano, split, dmin, dmax (minutos; 0 = sem) } */
+  function filter(rows, f = {}) {
+    const ys = yearsOf(f.ano), tq = norm(f.titulo), dmin = Math.max(0, +f.dmin || 0) * 60, dmax = Math.max(0, +f.dmax || 0) * 60;
+    return rows.filter((r) => matchComposer(r, f.comp)
+      && (!tq || tq.split(/\s+/).every((w) => norm(r.title).includes(w) || norm(r.composer).includes(w)))
+      && (!ys || (r.year != null && ys.some(([a, b]) => r.year >= a && r.year <= b)))
+      && (!f.split || r.split === f.split)
+      && (!dmin || (r.dur != null && r.dur >= dmin)) && (!dmax || (r.dur != null && r.dur <= dmax)));
+  }
+  const SORTS = { compositor: (r) => norm(r.composer), titulo: (r) => norm(r.title), ano: (r) => r.year ?? 0, duracao: (r) => r.dur ?? 0, split: (r) => r.split };
+  function sort(rows, key = 'compositor', dir = 1) {
+    const f = SORTS[key] || SORTS.compositor;
+    return rows.slice().sort((a, b) => { const x = f(a), y = f(b); return (x < y ? -1 : x > y ? 1 : a.i - b.i) * (x === y ? 1 : dir); });
+  }
+  /** os compositores (com quantas interpretações cada um tem), do mais frequente ao menos */
+  const composers = (rows) => { const m = new Map(); rows.forEach((r) => m.set(r.composer, (m.get(r.composer) || 0) + 1)); return [...m].sort((a, b) => b[1] - a[1] || norm(a[0]).localeCompare(norm(b[0]))); };
+
+  // ───────────────────────── MIDI ─────────────────────────
+  /** um .midi → { tpq, notes: [{ on, off, p, v }] (ms, pela ordem do ataque), cc: { 64: [[ms, valor]], 66, 67 }, end (ms) } */
+  function parseMidi(buf) {
+    const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+    let p = 0;
+    const str = (k) => { let s = ''; for (let i = 0; i < k; i++) s += String.fromCharCode(u8[p + i]); p += k; return s; };
+    const be32 = () => { const v = ((u8[p] << 24) | (u8[p + 1] << 16) | (u8[p + 2] << 8) | u8[p + 3]) >>> 0; p += 4; return v; };
+    const vlq = () => { let v = 0, b, k = 0; do { b = u8[p++]; v = v * 128 + (b & 0x7f); } while (b & 0x80 && p < u8.length && ++k < 4); return v; };
+    if (u8.length < 14 || str(4) !== 'MThd') throw new Error('não é um arquivo MIDI');
+    const hl = be32(), fmt = (u8[p] << 8) | u8[p + 1], div = (u8[p + 4] << 8) | u8[p + 5]; p += hl;
+    if (div & 0x8000) throw new Error('MIDI com tempo SMPTE não é suportado');
+    const tpq = div || 480, tempos = [], ev = []; let ti = 0, seq = 0;
+    while (p + 8 <= u8.length) {
+      const id = str(4), len = be32(), stop = Math.min(u8.length, p + len);
+      if (id !== 'MTrk') { p = stop; continue; }
+      let tick = 0, run = 0;
+      while (p < stop) {
+        tick += vlq(); let st = u8[p];
+        if (st & 0x80) { p++; if (st < 0xf0) run = st; } else { if (!run) throw new Error('MIDI estragado (running status sem status)'); st = run; }
+        if (st === 0xff) { const type = u8[p++], l = vlq(), q = p; p += l; if (type === 0x51 && l >= 3) tempos.push([tick, (u8[q] << 16) | (u8[q + 1] << 8) | u8[q + 2], ti, seq++]); else if (type === 0x2f) break; }
+        else if (st === 0xf0 || st === 0xf7) p += vlq();
+        else {
+          const hi = st & 0xf0, ch = st & 15, d1 = u8[p++], d2 = hi === 0xc0 || hi === 0xd0 ? 0 : u8[p++];
+          if (hi === 0x90 && d2 > 0) ev.push([tick, ti, seq++, 1, ch, d1, d2]);
+          else if (hi === 0x80 || hi === 0x90) ev.push([tick, ti, seq++, 0, ch, d1, 0]);
+          else if (hi === 0xb0 && (d1 === 64 || d1 === 66 || d1 === 67)) ev.push([tick, ti, seq++, 2, ch, d1, d2]);
+        }
+      }
+      p = stop; ti++;
+    }
+    // o mapa de tempo (µs por semínima) → ms
+    tempos.sort((a, b) => a[0] - b[0] || a[2] - b[2] || a[3] - b[3]);
+    const T = [[0, 500000]]; tempos.forEach(([t, us]) => { if (t === T[T.length - 1][0]) T[T.length - 1][1] = us; else T.push([t, us]); });
+    const acc = [0]; for (let i = 1; i < T.length; i++) acc.push(acc[i - 1] + ((T[i][0] - T[i - 1][0]) * T[i - 1][1]) / tpq / 1000);
+    let ci = 0;
+    const ms = (tick) => { while (ci + 1 < T.length && T[ci + 1][0] <= tick) ci++; while (ci > 0 && T[ci][0] > tick) ci--; return acc[ci] + ((tick - T[ci][0]) * T[ci][1]) / tpq / 1000; };
+    ev.sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]);
+    const notes = [], open = new Map(), cc = { 64: [], 66: [], 67: [] }; let end = 0;
+    for (const e of ev) {
+      const t = ms(e[0]); end = Math.max(end, t);
+      if (e[3] === 1) { const k = e[4] * 128 + e[5], n = { on: t, off: t, p: e[5], v: e[6] }; notes.push(n); if (!open.has(k)) open.set(k, []); open.get(k).push(n); }
+      else if (e[3] === 0) { const st = open.get(e[4] * 128 + e[5]); if (st && st.length) st.shift().off = t; }
+      else cc[e[5]].push([t, e[6]]);
+    }
+    open.forEach((st) => st.forEach((n) => { n.off = end; }));
+    notes.forEach((n) => { if (n.off <= n.on) n.off = n.on + 1; });
+    return { fmt, tpq, notes, cc, end, tempo: 60000000 / T[0][1] };
+  }
+  /** o pedal de sustain prolonga as notas (como o Magenta): a tecla solta com o pedal abaixado soa até o pedal subir;
+   *  a mesma tecla tocada de novo corta a anterior. Devolve [{ on, off, p, v, end }] (end = fim do som) */
+  function sustain(perf, thr = 64) {
+    const N = perf.notes.map((n) => ({ ...n, end: n.off })), E = [];
+    let down = false;
+    perf.cc[64].forEach(([t, v]) => { const d = v >= thr; if (d !== down) { E.push([t, d ? 0 : 1, null]); down = d; } });
+    N.forEach((n) => { E.push([n.on, 2, n]); E.push([n.off, 3, n]); });
+    E.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const act = new Map(); let sus = false, last = 0;
+    for (const [t, k, n] of E) {
+      last = Math.max(last, t);
+      if (k === 0) sus = true;
+      else if (k === 1) { sus = false; act.forEach((L, p) => { const keep = []; L.forEach((x) => { if (x.off <= t) x.end = Math.max(x.off, t); else keep.push(x); }); if (keep.length) act.set(p, keep); else act.delete(p); }); }
+      else if (k === 2) {
+        const L = act.get(n.p) || [];
+        if (sus) { const keep = []; L.forEach((x) => { if (x.off <= t) x.end = Math.max(x.off, t); else keep.push(x); }); L.length = 0; L.push(...keep); }
+        L.push(n); act.set(n.p, L);
+      } else if (!sus) { const L = act.get(n.p); if (L) { const i = L.indexOf(n); if (i >= 0) L.splice(i, 1); } }
+    }
+    const fin = Math.max(last, perf.end);
+    act.forEach((L) => L.forEach((x) => { if (x.off < x.end) return; if (sus) x.end = Math.max(x.off, fin); }));
+    return N;
+  }
+  /** as notas escolhidas: pedal (ignorar = a tecla; prolongar = o som), trecho [ini, fim) em segundos (0 = até o fim) */
+  function notesOf(perf, o = {}) {
+    const ped = o.pedal === 'prolongar' ? sustain(perf) : perf.notes.map((n) => ({ ...n, end: n.off }));
+    const t0 = Math.max(0, +o.ini || 0) * 1000, t1 = +o.fim > 0 ? +o.fim * 1000 : Infinity;
+    return ped.filter((n) => n.on >= t0 && n.on < t1).map((n) => ({ on: n.on - t0, off: Math.min(n.off, t1) - t0, end: Math.min(n.end, t1) - t0, p: n.p, v: n.v }));
+  }
+  /** notas → acordes: ataques a menos de `tol` ms do primeiro do grupo viram um acorde; alturas repetidas no acorde: a
+   *  mais forte (e a mais longa); quantização opcional (grade em ms) dos ataques e das durações */
+  function group(notes, tol = 30, quant = 0) {
+    const ns = notes.slice().sort((a, b) => a.on - b.on || a.p - b.p), G = [];
+    const q = quant > 0 ? (x) => Math.round(x / quant) * quant : (x) => x;
+    for (const n of ns) { const g = G[G.length - 1]; if (g && n.on - g.on0 <= Math.max(0, tol)) g.n.push(n); else G.push({ on0: n.on, n: [n] }); }
+    return G.map((g) => {
+      const m = new Map(); g.n.forEach((x) => { const y = m.get(x.p); if (!y || x.v > y.v || (x.v === y.v && x.end > y.end)) m.set(x.p, x); });
+      const L = [...m.values()].sort((a, b) => a.p - b.p), on = q(g.on0);
+      return { on, dur: Math.max(quant > 0 ? quant : 1, q(Math.max(...L.map((x) => x.end))) - on), p: L.map((x) => x.p), v: L.map((x) => x.v), key: L.map((x) => x.end - x.on) };
+    });
+  }
+  /** uma interpretação → os dados de uma voz (alturas em midicents) */
+  function toVoice(perf, o = {}) {
+    const G = group(notesOf(perf, o), o.tol ?? 30, +o.quant || 0);
+    return { chords: G.map((g) => g.p.map((x) => x * 100)), vels: G.map((g) => g.v.slice()), onsets: G.map((g) => +g.on.toFixed(3)), durs: G.map((g) => +g.dur.toFixed(3)), n: G.reduce((s, g) => s + g.p.length, 0) };
+  }
+  /** a curva do pedal (CC64, ou 66/67) no trecho: pontos em degraus { x: ms, y: 0–127 } */
+  function pedalCurve(perf, o = {}, cc = 64) {
+    const t0 = Math.max(0, +o.ini || 0) * 1000, t1 = +o.fim > 0 ? +o.fim * 1000 : perf.end, L = perf.cc[cc] || [];
+    let v0 = 0; L.forEach(([t, v]) => { if (t <= t0) v0 = v; });
+    const pts = [{ x: 0, y: v0 }]; L.forEach(([t, v]) => { if (t > t0 && t < t1) pts.push({ x: +(t - t0).toFixed(3), y: v }); });
+    pts.push({ x: +(t1 - t0).toFixed(3), y: pts[pts.length - 1].y });
+    return pts;
+  }
+  /** o trecho [ini, fim) s de uma interpretação, com o tempo a partir de 0 (notas, pedais e fim) */
+  function trim(perf, o = {}) {
+    const t0 = Math.max(0, +o.ini || 0) * 1000, t1 = +o.fim > 0 ? +o.fim * 1000 : Infinity;
+    if (!t0 && t1 === Infinity) return perf;
+    const cc = {}; Object.entries(perf.cc || {}).forEach(([k, L]) => { let v0 = null; const out = []; L.forEach(([t, v]) => { if (t <= t0) v0 = v; else if (t < t1) out.push([t - t0, v]); }); cc[k] = v0 != null && v0 > 0 ? [[0, v0], ...out] : out; });
+    return { ...perf, notes: perf.notes.filter((n) => n.on >= t0 && n.on < t1).map((n) => ({ ...n, on: n.on - t0, off: Math.min(n.off, t1) - t0 })), cc: perf.cc ? cc : null, end: Math.max(0, Math.min(perf.end, t1) - t0) };
+  }
+  /** uma voz { chords (midicents), vels, onsets, durs } como uma «interpretação» sem pedais (sem ritmo: 500 ms por acorde) */
+  function fromVoice(v) {
+    const notes = []; let end = 0;
+    (v.chords || []).forEach((c, i) => { const on = v.onsets ? +v.onsets[i] : i * 500, du = v.durs ? +v.durs[i] : 475; c.forEach((mc, j) => { const p = Math.max(0, Math.min(127, Math.round(mc / 100))); notes.push({ on, off: on + Math.max(1, du), p, v: Math.max(1, Math.min(127, Math.round(v.vels?.[i]?.[j] ?? v.vels?.[i]?.[0] ?? 100))) }); }); end = Math.max(end, on + Math.max(1, du)); });
+    notes.sort((a, b) => a.on - b.on || a.p - b.p);
+    return { notes, cc: null, end, tpq: 0 };
+  }
+  /** as notas como uma trilha do mf-info do OM (altura MIDI, ataque ms, duração ms, velocidade, canal), para a LZ */
+  const mfTrack = (perf, o = {}, ch = 1, max = 0) => { let ns = notesOf(perf, o).sort((a, b) => a.on - b.on || a.p - b.p); if (max > 0) ns = ns.slice(0, max); return ns.map((n) => [n.p, Math.round(n.on), Math.max(1, Math.round(n.end - n.on)), n.v, ch]); };
+
+  // ───────────────────────── análise ─────────────────────────
+  const IOI_EDGES = [0, 25, 50, 100, 150, 200, 300, 400, 600, 800, 1200, 1600, 2400, Infinity];
+  const VEL_BINS = 16;
+  const binOf = (edges, x) => { for (let i = 0; i < edges.length - 1; i++) if (x < edges[i + 1]) return i; return edges.length - 2; };
+  const zeros = (n) => new Array(n).fill(0);
+  const pedalFrac = (L, end, thr = 64) => { let t = 0, down = false, since = 0; L.forEach(([x, v]) => { const d = v >= thr; if (d && !down) since = x; if (!d && down) t += x - since; down = d; }); if (down) t += Math.max(0, end - since); return end > 0 ? Math.min(1, t / end) : 0; };
+  /** as medidas de uma interpretação (ou de uma voz: { notes, cc, end }); o: { tol, win (s, densidade) } */
+  function features(perf, o = {}) {
+    const tol = o.tol ?? 30, ns = perf.notes, F = { n: ns.length, pieces: 1, end: perf.end, pc: zeros(12), reg: zeros(88), vel: zeros(128), ioi: zeros(IOI_EDGES.length - 1), ioiFine: zeros(5001), chord: zeros(12), int: zeros(49), dens: [],
+      durFine: zeros(2001), durS: zeros(2001), pMin: Infinity, pMax: -Infinity, pSum: 0, vSum: 0, vSq: 0, dSum: 0, dsSum: 0, nG: 0, ped: { 64: 0, 66: 0, 67: 0 }, pedT: { 64: 0, 66: 0, 67: 0 } };
+    const sus = perf.cc ? sustain(perf) : ns.map((n) => ({ ...n, end: n.end ?? n.off }));
+    sus.forEach((n) => {
+      F.pc[n.p % 12]++; if (n.p >= 21 && n.p <= 108) F.reg[n.p - 21]++; F.vel[Math.max(0, Math.min(127, n.v))]++;
+      F.pMin = Math.min(F.pMin, n.p); F.pMax = Math.max(F.pMax, n.p); F.pSum += n.p; F.vSum += n.v; F.vSq += n.v * n.v;
+      const d = n.off - n.on, ds = n.end - n.on; F.dSum += d; F.dsSum += ds; F.durFine[Math.min(2000, Math.round(d / 5))]++; F.durS[Math.min(2000, Math.round(ds / 5))]++;
+    });
+    const G = group(sus, tol);
+    F.nG = G.length;
+    G.forEach((g, i) => {
+      F.chord[Math.min(12, g.p.length) - 1]++;
+      if (i) { const d = g.on - G[i - 1].on; F.ioi[binOf(IOI_EDGES, d)]++; F.ioiFine[Math.min(5000, Math.round(d))]++; const iv = g.p[g.p.length - 1] - G[i - 1].p[G[i - 1].p.length - 1]; F.int[Math.max(-24, Math.min(24, iv)) + 24]++; }
+    });
+    const win = Math.max(0.25, +o.win || 1) * 1000, nb = Math.max(1, Math.ceil(perf.end / win)); F.dens = zeros(nb); F.densWin = win;
+    ns.forEach((n) => { F.dens[Math.min(nb - 1, Math.floor(n.on / win))] += 1000 / win; });
+    if (perf.cc) [64, 66, 67].forEach((k) => { F.ped[k] = pedalFrac(perf.cc[k] || [], perf.end); F.pedT[k] = F.ped[k] * perf.end; });
+    return F;
+  }
+  /** várias medidas numa só (as contagens somam; o pedal pesa pela duração) */
+  function merge(Fs) {
+    const F = { n: 0, pieces: 0, end: 0, pc: zeros(12), reg: zeros(88), vel: zeros(128), ioi: zeros(IOI_EDGES.length - 1), ioiFine: zeros(5001), chord: zeros(12), int: zeros(49), dens: Fs[0]?.dens || [], densWin: Fs[0]?.densWin || 1000,
+      durFine: zeros(2001), durS: zeros(2001), pMin: Infinity, pMax: -Infinity, pSum: 0, vSum: 0, vSq: 0, dSum: 0, dsSum: 0, nG: 0, ped: { 64: 0, 66: 0, 67: 0 }, pedT: { 64: 0, 66: 0, 67: 0 } };
+    const add = (a, b) => b.forEach((x, i) => { a[i] += x; });
+    Fs.forEach((x) => {
+      F.n += x.n; F.pieces += x.pieces; F.end += x.end; F.nG += x.nG; F.pSum += x.pSum; F.vSum += x.vSum; F.vSq += x.vSq; F.dSum += x.dSum; F.dsSum += x.dsSum;
+      F.pMin = Math.min(F.pMin, x.pMin); F.pMax = Math.max(F.pMax, x.pMax);
+      ['pc', 'reg', 'vel', 'ioi', 'ioiFine', 'chord', 'int', 'durFine', 'durS'].forEach((k) => add(F[k], x[k]));
+      [64, 66, 67].forEach((k) => { F.pedT[k] += x.pedT[k]; });
+    });
+    [64, 66, 67].forEach((k) => { F.ped[k] = F.end > 0 ? F.pedT[k] / F.end : 0; });
+    return F;
+  }
+  const medianOf = (H, step = 1) => { const tot = H.reduce((s, x) => s + x, 0); if (!tot) return 0; let c = 0; for (let i = 0; i < H.length; i++) { c += H[i]; if (c >= tot / 2) return i * step; } return (H.length - 1) * step; };
+  const prop = (H) => { const s = H.reduce((a, b) => a + b, 0) || 1; return H.map((x) => x / s); };
+  const PCN = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  /** o resumo de uma medida, em números (para a tabela e a saída «resumo») */
+  function summary(F) {
+    const n = F.n || 1, mean = F.vSum / n;
+    return { pieces: F.pieces, notes: F.n, minutes: F.end / 60000, nps: F.end > 0 ? F.n / (F.end / 1000) : 0, vel: mean, velSd: Math.sqrt(Math.max(0, F.vSq / n - mean * mean)), pitch: F.pSum / n,
+      lo: Number.isFinite(F.pMin) ? F.pMin : 0, hi: Number.isFinite(F.pMax) ? F.pMax : 0, ioi: medianOf(F.ioiFine), chord: F.nG ? F.n / F.nG : 0,
+      ped: F.ped[64] * 100, sost: F.ped[66] * 100, una: F.ped[67] * 100, dur: F.dSum / n, durSus: F.dsSum / n, durMed: medianOf(F.durFine, 5), topPc: F.pc.indexOf(Math.max(...F.pc)) };
+  }
+  const SUM_KEYS = ['pieces', 'notes', 'minutes', 'nps', 'vel', 'velSd', 'pitch', 'lo', 'hi', 'ioi', 'chord', 'ped', 'sost', 'una', 'dur', 'durSus', 'durMed', 'topPc'];
+
+  // ───────────────────────── Markov de ordem variável ─────────────────────────
+  const VEL_EDGES = [0, 40, 56, 70, 84, 98, 128];
+  const T_EDGES = [0, 40, 70, 110, 160, 230, 330, 470, 670, 950, 1350, 1900, 2700, Infinity];
+  /** acordes (de group) → símbolos: «alturas|classe de vel|classe de IOI|classe de duração» ou só as alturas */
+  function symbolize(G) {
+    return G.map((g, i) => {
+      const ioi = i + 1 < G.length ? G[i + 1].on - g.on : g.dur, vt = Math.max(...g.v);
+      return { p: g.p.join('.'), vc: binOf(VEL_EDGES, vt), ic: binOf(T_EDGES, ioi), dc: binOf(T_EDGES, g.dur), vel: vt, ioi, dur: g.dur, pv: g.v };
+    });
+  }
+  /** aprende: seqs = [[símbolos (strings)]], ordem máx. k; conta contextos de 0 a k símbolos */
+  function ngramTrain(seqs, k) {
+    const C = new Map();
+    seqs.forEach((s) => { for (let i = 0; i < s.length; i++) for (let j = 0; j <= k && j <= i; j++) { const ctx = s.slice(i - j, i).join('␟'); let m = C.get(ctx); if (!m) C.set(ctx, (m = new Map())); m.set(s[i], (m.get(s[i]) || 0) + 1); } });
+    return { order: k, C, starts: seqs.filter((s) => s.length).map((s) => s.slice(0, k)) };
+  }
+  /** escolhe pelo peso^(1/T); T = 0: o mais frequente */
+  function pick(m, temp, rnd) {
+    const E = [...m];
+    if (!(temp > 0)) { let b = E[0]; E.forEach((e) => { if (e[1] > b[1]) b = e; }); return b[0]; }
+    const w = E.map((e) => Math.pow(e[1], 1 / temp)), s = w.reduce((a, b) => a + b, 0); let r = rnd() * s;
+    for (let i = 0; i < E.length; i++) { r -= w[i]; if (r <= 0) return E[i][0]; }
+    return E[E.length - 1][0];
+  }
+  /** gera `len` símbolos: começa como uma das peças; a cada passo o maior contexto conhecido (recua até a ordem 0) */
+  function ngramGen(M, len, temp, rnd, order = M.order) {
+    const st = M.starts.length ? M.starts[Math.floor(rnd() * M.starts.length)] : [];
+    const out = st.slice(0, Math.min(order, len)); const used = [];
+    while (out.length < len) {
+      let m = null, j = Math.min(order, out.length);
+      for (; j >= 0; j--) { m = M.C.get(out.slice(out.length - j).join('␟')); if (m && m.size) break; }
+      if (!m) break;
+      used.push(j); out.push(pick(m, temp, rnd));
+    }
+    return { seq: out, ctx: used.length ? used.reduce((a, b) => a + b, 0) / used.length : 0 };
+  }
+  /** os representantes de cada classe (a mediana do que caiu nela, no corpus) */
+  function classReps(S) {
+    const by = (key, val, edges) => { const L = edges.slice(0, -1).map(() => []); S.forEach((x) => L[x[key]].push(x[val])); return L.map((a, i) => { if (!a.length) { const lo = edges[i], hi = Number.isFinite(edges[i + 1]) ? edges[i + 1] : lo * 1.5 + 1; return (lo + hi) / 2; } a.sort((x, y) => x - y); return a[a.length >> 1]; }); };
+    return { vel: by('vc', 'vel', VEL_EDGES), ioi: by('ic', 'ioi', T_EDGES), dur: by('dc', 'dur', T_EDGES) };
+  }
+  /** treina a cadeia sobre os acordes de várias peças; modo 'junto' (alturas+vel+IOI+dur num símbolo) ou 'separado'
+   *  (as alturas numa cadeia, vel/IOI/dur noutra, de ordem 1) */
+  function markovTrain(groups, o = {}) {
+    const k = Math.max(1, Math.min(8, Math.round(+o.order || 2))), SS = groups.map(symbolize), all = SS.flat(), reps = classReps(all);
+    const junto = o.modo !== 'separado';
+    const seqs = SS.map((S) => S.map((x) => (junto ? `${x.p}|${x.vc}|${x.ic}|${x.dc}` : x.p)));
+    const M = ngramTrain(seqs, k), R = junto ? null : ngramTrain(SS.map((S) => S.map((x) => `${x.vc}|${x.ic}|${x.dc}`)), 1);
+    const nCtx = [...M.C.keys()].length;
+    return { kind: 'maestro-markov', order: k, modo: junto ? 'junto' : 'separado', M, R, reps, nSym: new Set(seqs.flat()).size, nEv: all.length, nCtx, train: seqs,
+      label: `Markov ordem ${k} · ${new Set(seqs.flat()).size} símbolos · ${all.length} acordes`, toJSON() { return this.label; } };
+  }
+  function markovGen(model, len, temp, rnd) {
+    const L = Math.max(1, Math.round(len)), g = ngramGen(model.M, L, temp, rnd), r = model.R ? ngramGen(model.R, g.seq.length, temp, rnd).seq : null;
+    const out = { chords: [], vels: [], onsets: [], durs: [], ctx: g.ctx }; let t = 0;
+    g.seq.forEach((s, i) => {
+      const [p, vc, ic, dc] = model.R ? [s, ...String(r[i % Math.max(1, r.length)] || '2|5|5').split('|')] : s.split('|');
+      const ps = p.split('.').map(Number), vel = Math.round(model.reps.vel[+vc] ?? 64);
+      out.chords.push(ps.map((x) => x * 100)); out.vels.push(ps.map(() => Math.max(1, Math.min(127, vel)))); out.onsets.push(+t.toFixed(3)); out.durs.push(+Math.max(20, model.reps.dur[+dc] ?? 300).toFixed(3));
+      t += Math.max(10, model.reps.ioi[+ic] ?? 300);
+    });
+    return out;
+  }
+
+  // ───────────────────────── modelo de interpretação («humanizar como…») ─────────────────────────
+  const meanOf = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
+  const sdOf = (a) => { if (a.length < 2) return 0; const m = meanOf(a); return Math.sqrt(a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1)); };
+  const ar1 = (a) => { if (a.length < 3) return 0; const m = meanOf(a); let num = 0, den = 0; for (let i = 0; i < a.length; i++) { den += (a[i] - m) ** 2; if (i) num += (a[i] - m) * (a[i - 1] - m); } return den > 0 ? Math.max(-0.99, Math.min(0.99, num / den)) : 0; };
+  /** o que se aprende de uma interpretação: dinâmica (média, desvio, memória AR(1), inclinação pela altura, acento da nota
+   *  de cima dos acordes) e tempo (desvio do IOI em relação à mediana local, em log, e a sua memória), articulação e
+   *  espalhamento dos ataques dentro dos acordes */
+  function perfStats(perf, o = {}) {
+    const tol = o.tol ?? 30, G = group(perf.notes.map((n) => ({ ...n, end: n.off })), tol);
+    if (G.length < 4) return null;
+    const top = G.map((g) => g.v[g.v.length - 1]), dev = top.map((x) => x - meanOf(top));
+    let sxy = 0, sxx = 0; const pm = meanOf(perf.notes.map((n) => n.p)), vm = meanOf(perf.notes.map((n) => n.v));
+    perf.notes.forEach((n) => { sxy += (n.p - pm) * (n.v - vm); sxx += (n.p - pm) ** 2; });
+    const acc = G.filter((g) => g.p.length > 1).map((g) => g.v[g.v.length - 1] - meanOf(g.v.slice(0, -1)));
+    // o rubato: o tempo local (a mediana de 17 IOIs em volta) em log, em relação ao da peça — a mediana pula o ritmo
+    // escrito (que o MIDI de interpretação não separa da expressão) e fica com as oscilações de andamento
+    const ioi = G.slice(1).map((g, i) => g.on - G[i].on).filter((x) => x > 0), lt = [];
+    for (let i = 0; i < ioi.length; i++) { const w = ioi.slice(Math.max(0, i - 8), i + 9).sort((a, b) => a - b), med = w[w.length >> 1]; if (med > 0) lt.push(Math.log(med)); }
+    const ltm = meanOf(lt), lx = lt.map((x) => Math.max(-1, Math.min(1, x - ltm)));
+    const art = []; for (let i = 0; i + 1 < G.length; i++) if (G[i].p.length === 1) art.push(Math.min(3, Math.max(...G[i].key) / Math.max(1, G[i + 1].on - G[i].on)));
+    const spread = [], ons = perf.notes.slice().sort((a, b) => a.on - b.on); let gi = 0; for (let i = 1; i <= ons.length; i++) { if (i === ons.length || ons[i].on - ons[gi].on > tol) { if (i - gi > 1) spread.push(ons[i - 1].on - ons[gi].on); gi = i; } }
+    return { n: perf.notes.length, vMean: meanOf(top), vSd: sdOf(dev), vRho: ar1(dev), vSlope: sxx > 0 ? sxy / sxx : 0, pMean: pm, accent: meanOf(acc), tSd: sdOf(lx), tRho: ar1(lx), art: art.length ? art.slice().sort((a, b) => a - b)[art.length >> 1] : 0.9, spread: meanOf(spread) };
+  }
+  /** o modelo de interpretação: a média (pesada pelas notas) das medidas de cada peça (stats: já medidas) */
+  function perfModel(perfs, o = {}, stats = null) {
+    const S = (stats || perfs.map((p) => perfStats(p, o))).filter(Boolean); if (!S.length) throw new Error('as interpretações escolhidas têm notas de menos para aprender');
+    const W = S.reduce((s, x) => s + x.n, 0), avg = (k) => S.reduce((s, x) => s + x[k] * x.n, 0) / W;
+    const m = { kind: 'maestro-perf', pieces: S.length, notes: W };
+    ['vMean', 'vSd', 'vRho', 'vSlope', 'pMean', 'accent', 'tSd', 'tRho', 'art', 'spread'].forEach((k) => { m[k] = avg(k); });
+    m.label = `interpretação · ${S.length} peça(s) · vel ${m.vMean.toFixed(0)}±${m.vSd.toFixed(0)} · tempo ±${(100 * (Math.exp(m.tSd) - 1)).toFixed(0)}%`;
+    m.toJSON = function () { return this.label; };
+    return m;
+  }
+  const gauss = (rnd) => { let u = 0, v = 0; while (u === 0) u = rnd(); while (v === 0) v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  /** aplica o modelo a uma voz { chords, vels, onsets, durs }: amount 0–1 (0 = a voz como veio); articulação 'entrada' ou 'corpus' */
+  function humanize(v, M, o = {}, rnd = Math.random) {
+    const a = Math.max(0, Math.min(2, o.amount ?? 1)), n = v.chords.length;
+    const on0 = v.onsets || v.chords.map((_, i) => i * 500), du0 = v.durs || v.chords.map(() => 475);
+    const on = [], du = [], vel = [], warp = [], dyn = [];
+    let x = 0, y = 0, t = on0[0] || 0;
+    const kT = Math.sqrt(Math.max(0, 1 - M.tRho * M.tRho)), kV = Math.sqrt(Math.max(0, 1 - M.vRho * M.vRho));
+    for (let i = 0; i < n; i++) {
+      x = M.tRho * x + kT * M.tSd * gauss(rnd); y = M.vRho * y + kV * M.vSd * gauss(rnd);
+      if (i) { const ioi = Math.max(0, on0[i] - on0[i - 1]); t += ioi * Math.exp(a * x); }
+      const f = i ? (t - on[i - 1]) / Math.max(1e-9, on0[i] - on0[i - 1]) : 1;
+      on.push(+t.toFixed(3)); warp.push(Number.isFinite(f) && on0[i] > on0[i - 1] ? f : 1);
+      const nx = i + 1 < n ? on0[i + 1] - on0[i] : du0[i];
+      du.push(+Math.max(10, o.art === 'corpus' ? Math.max(1, nx) * Math.exp(a * x) * M.art : du0[i] * Math.exp(a * x)).toFixed(3));
+      const c = v.chords[i], top = Math.max(...c), base = M.vMean + y;
+      dyn.push(base);
+      vel.push(c.map((mc, j) => {
+        const model = base + M.vSlope * (mc / 100 - M.pMean) + (c.length > 1 && mc === top ? M.accent : 0);
+        const vin = v.vels?.[i]?.[j] ?? v.vels?.[i]?.[0] ?? model;
+        return Math.max(1, Math.min(127, Math.round((1 - Math.min(1, a)) * vin + Math.min(1, a) * model)));
+      }));
+    }
+    return { chords: v.chords.map((c) => c.slice()), vels: vel, onsets: on, durs: du, warp, dyn };
+  }
+
+  /** o trabalho de um arquivo (no Worker ou, sem ele, aqui): ler o MIDI, cortar o trecho e medir, ou guardar o que o modelo usa */
+  function work(op, bytes, a = {}) {
+    let p = parseMidi(bytes); if (a.trim) p = trim(p, a.trim);
+    if (op === 'features') return features(p, a);
+    if (op === 'lz') return mfTrack(p, { pedal: a.pedal }, 1, a.maxn);
+    if (op === 'markov') return group(notesOf(p, { pedal: a.pedal }), a.tol);
+    if (op === 'perf') return perfStats(p, { tol: a.tol });
+    throw new Error(`trabalho desconhecido: ${op}`);
+  }
+  return { URL_ZIP, ZIP_NAME, OPT, inflateRaw, inflate, zipOpen, filesOpen, parseCSV, rowsFromJSON, rowsFromCSV, catalog, isMidi, norm, yearsOf, filter, sort, composers,
+    parseMidi, sustain, notesOf, group, toVoice, trim, fromVoice, pedalCurve, mfTrack, IOI_EDGES, VEL_BINS, features, merge, summary, SUM_KEYS, medianOf, prop, PCN,
+    symbolize, ngramTrain, ngramGen, markovTrain, markovGen, perfStats, perfModel, humanize, gauss, T_EDGES, VEL_EDGES, work };
+}
+const MAESTRO = maestroEngine();
+if (typeof module !== 'undefined' && typeof window === 'undefined') module.exports = MAESTRO;
+
+// ════════════════════════════════════════════════════════════════
+//  MAESTRO (piano, Magenta) — os objetos «maestro» (abrir o dataset, filtrar, escolher, tirar vozes), «maestro-analise»
+//  (medidas do corpus, por interpretação e por compositor) e «maestro-modelo» (LZ/PST e Markov aprendidos do corpus;
+//  «humanizar como…»). O motor está em MAESTRO (src/maestro.js). A página não traz nada do dataset: o zip (ou a pasta
+//  extraída, ou arquivos soltos) é aberto por quem usa e fica guardado no navegador (IndexedDB) e, dentro do Live, na
+//  pasta de dados da extensão (pela mesma operação «model» que guarda os modelos Magenta, em partes de 24 MB).
+// ════════════════════════════════════════════════════════════════
+{
+  const MX = MAESTRO;
+  /** o dataset desta página (um só, para todas as caixas): st 'none' | 'loading' | 'ready' | 'missing' */
+  const MDS = { st: 'none', msg: '', note: '', from: '', src: null, cat: null, byId: new Map(), spec: null, ver: 0, perf: new Map(), dl: null, saved: '' };
+  const maeTick = () => new Promise((r) => setTimeout(r, 0));
+  const maeNodes = () => [...graph.nodes.values()].filter((n) => /^maestro/.test(n.type));
+  /** redesenha as caixas maestro (sem reavaliar o patch): o estado do dataset e o progresso */
+  const maeRepaint = () => maeNodes().forEach((n) => { try { if (n.type === 'maestro') refreshView(n); } catch (e) { /* a caixa sumiu */ } });
+
+  // ───────── guarda no navegador (IndexedDB), quando há ─────────
+  const maeIdb = () => new Promise((res, rej) => { try { const rq = indexedDB.open('omdamiao-maestro', 1); rq.onupgradeneeded = () => rq.result.createObjectStore('ds'); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); } catch (e) { rej(e); } });
+  const maeIdbGet = (k) => maeIdb().then((db) => new Promise((res, rej) => { const rq = db.transaction('ds').objectStore('ds').get(k); rq.onsuccess = () => res(rq.result || null); rq.onerror = () => rej(rq.error); }));
+  const maeIdbPut = (k, v) => maeIdb().then((db) => new Promise((res, rej) => { const tx = db.transaction('ds', 'readwrite'); v === null ? tx.objectStore('ds').delete(k) : tx.objectStore('ds').put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); }));
+  const maeHasLive = () => typeof LIVE !== 'undefined' && LIVE.on() && !!LIVE.env()?.models;
+  const maeB64 = (u) => { let t = ''; for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(t); };
+  const PART = 24 * 1024 * 1024;
+  /** dentro do Live: o zip vai para <pasta de dados>/magenta/maestro/ em partes (o servidor aceita até 64 MB por envio) */
+  async function maeKeepInLive(blob, name) {
+    if (!maeHasLive()) return false;
+    const parts = [];
+    for (let i = 0, k = 0; i < blob.size; i += PART, k++) {
+      const file = `${name}.${String(k).padStart(3, '0')}`;
+      await LIVE.api('model', { ck: 'maestro', file, data: maeB64(new Uint8Array(await blob.slice(i, i + PART).arrayBuffer())) });
+      parts.push(file);
+    }
+    await LIVE.api('model', { ck: 'maestro', file: 'parts.json', data: maeB64(new TextEncoder().encode(JSON.stringify({ name, size: blob.size, parts }))) });
+    return true;
+  }
+  async function maeFromLive() {
+    const base = `${LIVE.env().models}maestro/`, r = await fetch(base + 'parts.json'); if (!r.ok) return null;
+    const j = await r.json(), bufs = [];
+    for (const p of j.parts) { const q = await fetch(base + p); if (!q.ok) throw new Error(`${p}: ${q.status}`); bufs.push(await q.arrayBuffer()); }
+    const blob = new Blob(bufs, { type: 'application/zip' }); if (blob.size !== j.size) throw new Error('as partes guardadas não somam o tamanho do zip');
+    return { kind: 'zip', blob, name: j.name || MX.ZIP_NAME };
+  }
+
+  /** passa a usar um dataset: o catálogo (metadados e onde está cada .midi); persist: guarda no navegador e no Live */
+  async function maeUse(spec, from, persist) {
+    const prev = { ...MDS };
+    MDS.st = 'loading'; MDS.msg = 'lendo o catálogo…'; maeRepaint();
+    try {
+      const src = spec.kind === 'zip' ? await MX.zipOpen(spec.blob) : MX.filesOpen(spec.files);
+      const cat = await MX.catalog(src);
+      if (!cat.rows.length) throw new Error('nenhuma interpretação (.midi) no que você abriu');
+      Object.assign(MDS, { st: 'ready', msg: '', note: '', src, cat, from, spec, byId: new Map(cat.rows.map((r) => [r.id, r])), ver: MDS.ver + 1, saved: persist ? '' : MDS.saved });
+      MDS.perf.clear();
+    } catch (e) {
+      Object.assign(MDS, prev.st === 'ready' ? prev : { st: 'missing', msg: '' }); MDS.note = `não foi possível abrir: ${e?.message || e}`;
+      schedule(true); throw e;
+    }
+    if (persist) {
+      const v = spec.kind === 'zip' ? { kind: 'zip', blob: spec.blob, name: spec.name } : { kind: 'files', files: Object.entries(spec.files) };
+      maeIdbPut('ds', v).then(() => { MDS.saved = 'guardado no navegador'; maeRepaint(); }).catch(() => { MDS.saved = 'o navegador não deixou guardar: vale só nesta sessão'; maeRepaint(); });
+      if (spec.kind === 'zip' && maeHasLive()) maeKeepInLive(spec.blob, spec.name || MX.ZIP_NAME).then((ok) => { if (ok) { MDS.saved = 'guardado na pasta da extensão do Live'; flash('MAESTRO guardado na pasta de dados da extensão'); maeRepaint(); } }).catch((e) => { MDS.saved = `não foi possível guardar na pasta do Live (${e?.message || e})`; maeRepaint(); });
+    }
+    schedule(true);
+  }
+  /** procura um dataset guardado: no navegador, na pasta do Live, ou em magenta/maestro/ ao lado da página */
+  async function maeRestore() {
+    try { const s = await maeIdbGet('ds'); if (s && (s.blob || s.files)) { await maeUse(s.kind === 'zip' ? { kind: 'zip', blob: s.blob, name: s.name } : { kind: 'files', files: Object.fromEntries(s.files) }, 'guardado no navegador', false); MDS.saved = 'guardado no navegador'; return; } } catch (e) { /* sem IndexedDB: segue */ }
+    try { if (maeHasLive()) { const sp = await maeFromLive(); if (sp) { await maeUse(sp, 'pasta da extensão do Live', false); MDS.saved = 'guardado na pasta da extensão do Live'; return; } } } catch (e) { /* segue */ }
+    try {
+      if (typeof location !== 'undefined' && /^https?:$/.test(location.protocol) && !maeHasLive()) {
+        const r = await fetch(new URL(`magenta/maestro/${MX.ZIP_NAME}`, location.href).href);
+        if (r.ok) { await maeUse({ kind: 'zip', blob: await r.blob(), name: MX.ZIP_NAME }, 'pasta magenta/maestro/ ao lado da página', false); return; }
+      }
+    } catch (e) { /* segue */ }
+    MDS.st = 'missing'; MDS.msg = '';
+  }
+  function maeEnsure() { if (MDS.st === 'none') { MDS.st = 'loading'; MDS.msg = 'procurando o dataset guardado…'; maeRestore().catch(() => { MDS.st = 'missing'; }).finally(() => schedule(true)); } }
+  /** o que o usuário abriu: um zip, a pasta extraída (webkitdirectory) ou arquivos soltos (.midi + csv/json) */
+  function maeOpen(list) {
+    const fs = [...(list || [])]; if (!fs.length) return;
+    const zip = fs.find((f) => /\.zip$/i.test(f.name));
+    const spec = zip ? { kind: 'zip', blob: zip, name: zip.name } : { kind: 'files', files: Object.fromEntries(fs.filter((f) => MX.isMidi(f.name) || /\.(csv|json)$/i.test(f.name)).map((f) => [f.webkitRelativePath || f.name, f])) };
+    if (spec.kind === 'files' && !Object.keys(spec.files).some(MX.isMidi)) { toast('Abra o maestro-v3.0.0-midi.zip, a pasta extraída (maestro-v3.0.0) ou arquivos .midi (com o maestro-v3.0.0.csv ou .json, para os metadados).'); return; }
+    maeUse(spec, zip ? `arquivo ${zip.name}` : `${Object.keys(spec.files).length} arquivos abertos`, true).catch((e) => toast(`MAESTRO: ${e?.message || e}`));
+  }
+  /** baixa o zip do servidor do Magenta (56 MB), com o progresso; o navegador pode recusar (CORS) */
+  async function maeDownload() {
+    if (MDS.dl) return;
+    const before = MDS.st; MDS.dl = { got: 0, total: 0 }; MDS.note = ''; if (before !== 'ready') { MDS.st = 'loading'; MDS.msg = 'baixando do Magenta…'; } maeRepaint();
+    try {
+      const r = await fetch(MX.URL_ZIP); if (!r.ok) throw new Error(`o servidor respondeu ${r.status}`);
+      MDS.dl.total = +r.headers.get('content-length') || 0;
+      const chunks = []; let last = 0;
+      if (r.body && r.body.getReader) { const rd = r.body.getReader(); for (;;) { const { done, value } = await rd.read(); if (done) break; chunks.push(value); MDS.dl.got += value.length; if (Date.now() - last > 250) { last = Date.now(); maeRepaint(); } } }
+      else chunks.push(new Uint8Array(await r.arrayBuffer()));
+      MDS.dl = null;
+      await maeUse({ kind: 'zip', blob: new Blob(chunks, { type: 'application/zip' }), name: MX.ZIP_NAME }, 'baixado do Magenta', true);
+    } catch (e) {
+      MDS.dl = null; if (MDS.st !== 'ready') { MDS.st = before === 'ready' ? 'ready' : 'missing'; MDS.msg = ''; }
+      MDS.note = `não deu para baixar do servidor do Google (${e?.message || e}): o navegador pode bloquear o acesso direto (CORS) ou a rede falhou. Baixe o arquivo pelo endereço ${MX.URL_ZIP} e abra-o com «abrir maestro-v3.0.0-midi.zip…».`;
+      toast(`MAESTRO: ${MDS.note}`); schedule(true);
+    }
+  }
+  function maeForget() {
+    maeIdbPut('ds', null).catch(() => {});
+    Object.assign(MDS, { st: 'missing', msg: '', note: 'a cópia guardada no navegador foi apagada (a da pasta do Live, se houver, fica)', src: null, cat: null, byId: new Map(), spec: null, ver: MDS.ver + 1, saved: '' }); MDS.perf.clear();
+    schedule(true);
+  }
+  /** uma interpretação lida e analisada (promessa; .val quando pronta), com um cache dos últimos 48 arquivos */
+  function maePerf(id) {
+    if (MDS.perf.has(id)) { const p = MDS.perf.get(id); MDS.perf.delete(id); MDS.perf.set(id, p); return p; }
+    const path = MDS.cat?.path.get(id);
+    const pr = path ? MDS.src.read(path).then((u8) => MX.parseMidi(u8)) : Promise.reject(new Error(`o arquivo ${id} não está no que você abriu`));
+    pr.then((v) => { pr.val = v; }, (e) => { pr.err = String(e?.message || e); });
+    MDS.perf.set(id, pr); while (MDS.perf.size > 48) MDS.perf.delete(MDS.perf.keys().next().value);
+    return pr;
+  }
+  const maeStatus = () => (MDS.st === 'ready' ? `MAESTRO · ${MDS.cat.rows.length} interpretações · ${MDS.cat.hours.toFixed(1)} h · ${MDS.from}${MDS.saved ? ` · ${MDS.saved}` : ''}${MDS.cat.missing ? ` · ${MDS.cat.missing} sem o .midi` : ''}`
+    : MDS.st === 'loading' ? MDS.msg || 'carregando…' : 'abra o arquivo maestro-v3.0.0-midi.zip');
+  const NEED = 'abra o arquivo maestro-v3.0.0-midi.zip (botão «abrir maestro-v3.0.0-midi.zip…» do objeto maestro; veja a ajuda)';
+  const mmss = (s) => (s == null ? '—' : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`);
+  const SPL = { train: 'tr', validation: 'va', test: 'te' };
+  const progSVG = (txt, frac) => `<svg viewBox="0 0 440 54" role="img" aria-label="${esc(txt)}"><rect width="440" height="54" fill="var(--paper)"/><rect x="8" y="30" width="424" height="14" fill="none" stroke="var(--ink)" stroke-width="1.5"/>${frac != null ? `<rect x="10" y="32" width="${(420 * Math.max(0, Math.min(1, frac))).toFixed(1)}" height="10" fill="var(--ink)"/>` : ''}${SVGT(8, 22, txt.length > 70 ? txt.slice(0, 69) + '…' : txt, 15, 'start')}</svg>`;
+
+  // ───────── um Worker (Blob URL) faz a leitura e as contas de cada arquivo; sem ele, a página faz, um arquivo por vez ─────────
+  const MW = { w: null, failed: false, id: 0, wait: new Map() };
+  function maeWorker() {
+    if (MW.w || MW.failed) return MW.w;
+    try {
+      const src = `${maestroEngine.toString()}\nconst MAESTRO = maestroEngine();\nself.onmessage = (e) => { const { id, op, buf, a } = e.data; try { self.postMessage({ id, r: MAESTRO.work(op, new Uint8Array(buf), a) }); } catch (err) { self.postMessage({ id, err: String(err && err.message || err) }); } };`;
+      const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+      MW.w = new Worker(url); URL.revokeObjectURL(url);
+      MW.w.onmessage = (e) => { const q = MW.wait.get(e.data.id); if (!q) return; MW.wait.delete(e.data.id); if (e.data.err) q.rej(new Error(e.data.err)); else q.res(e.data.r); };
+      MW.w.onerror = (e) => { e.preventDefault?.(); MW.failed = true; MW.w = null; MW.wait.forEach((q) => q.rej(new Error('o Worker parou'))); MW.wait.clear(); };
+    } catch (e) { MW.failed = true; MW.w = null; }
+    return MW.w;
+  }
+  /** lê o arquivo de uma linha e faz o trabalho (no Worker, quando há) */
+  async function maeWork(id, op, a) {
+    const path = MDS.cat?.path.get(id); if (!path) throw new Error(`o arquivo ${id} não está no que você abriu`);
+    const u8 = await MDS.src.read(path), w = maeWorker();
+    if (!w) return MX.work(op, u8, a);
+    const buf = u8.byteOffset === 0 && u8.byteLength === u8.buffer.byteLength ? u8.buffer : u8.slice().buffer;
+    return new Promise((res, rej) => { const k = ++MW.id; MW.wait.set(k, { res, rej }); try { w.postMessage({ id: k, op, buf, a }, [buf]); } catch (e) { MW.wait.delete(k); MW.failed = true; try { res(MX.work(op, u8, a)); } catch (e2) { rej(e2); } } });
+  }
+
+  // ───────── trabalhos longos (muitos arquivos): um por caixa, com progresso e «parar»; nunca prende a tela ─────────
+  function maeJob(n, slot, key, items, fn, done) {
+    const J = n.ui[slot];
+    if (J && J.key === key) return J;
+    if (J && !J.end) J.cancel = true;
+    const job = n.ui[slot] = { key, done: 0, total: items.length, cancel: false, end: false, res: null, err: null, last: 0 };
+    (async () => {
+      const out = [];
+      for (const it of items) {
+        if (job.cancel) return;
+        try { out.push(await fn(it)); } catch (e) { out.push({ err: String(e?.message || e), it }); }
+        job.done++;
+        if (Date.now() - job.last > 150) { job.last = Date.now(); maeProg(n, slot); }
+        await maeTick();
+      }
+      if (job.cancel) return;
+      job.res = done ? await done(out) : out;
+    })().catch((e) => { job.err = String(e?.message || e); }).finally(() => { job.end = true; if (!job.cancel && graph.nodes.get(n.id) === n) schedule(true); });
+    return job;
+  }
+  /** o progresso na caixa, sem reavaliar o patch */
+  function maeProg(n, slot) {
+    const J = n.ui[slot]; if (!J || graph.nodes.get(n.id) !== n || !n.ui.ext) return;
+    const t = `${J.what || 'lendo'} ${J.done}/${J.total} interpretações…`;
+    n.ui.ext.innerHTML = progSVG(t, J.total ? J.done / J.total : null); n.ui.info.hidden = false; n.ui.info.textContent = `${t} (■ parar interrompe)`;
+  }
+  const maeStop = (n, slot) => { const J = n.ui[slot]; if (J && !J.end) { J.cancel = true; J.end = true; flash('parado'); schedule(true); } };
+  const maeRedo = (n, slot) => { const J = n.ui[slot]; if (J) J.cancel = true; n.ui[slot] = null; schedule(true); };
+  /** o estado de um trabalho para o run: { res } pronto, ou o que mostrar enquanto isso */
+  function maeJobState(n, slot, J, what) {
+    J.what = what;
+    if (J.end && J.cancel) return { show: { info: `${what}: parado em ${J.done}/${J.total} — «↻ refazer» recomeça`, ext: progSVG(`parado em ${J.done}/${J.total}`, J.total ? J.done / J.total : 0) } };
+    if (!J.end) return { show: { info: `${what} ${J.done}/${J.total} interpretações…`, ext: progSVG(`${what} ${J.done}/${J.total} interpretações…`, J.total ? J.done / J.total : null) } };
+    if (J.err) throw new Error(J.err);
+    return { res: J.res };
+  }
+
+  // ───────────────────────── o objeto «maestro» ─────────────────────────
+  const maeSel = (p) => String(p.sel || '').split('\n').map((s) => s.trim()).filter(Boolean);
+  const maeSetParam = (n, k, v) => { n.params[k] = v; const r = n.ui?.rows?.[k]; if (r && !r.field.disabled) r.field.value = v; };
+  function maeInit(n, box) {
+    const stat = h('p', { class: 'gdesc mae-stat', role: 'status' });
+    const drop = h('div', { class: 'mae-drop', title: 'Abrir o maestro-v3.0.0-midi.zip' });
+    drop.addEventListener('click', () => n.ui.maeFile?.click());
+    const comp = h('select', { class: 'gb', 'aria-label': 'compositor', style: 'padding:1px 4px;max-width:360px' });
+    comp.addEventListener('change', () => { pushUndo(); maeSetParam(n, 'comp', comp.value); schedule(true); });
+    const compRow = h('div', { class: 'acts' }, h('span', { class: 'gdesc', text: 'compositor' }), comp);
+    const list = h('div', { class: 'tbl mae-list', 'aria-label': 'interpretações do MAESTRO (clique para escolher)' });
+    list.addEventListener('click', (e) => maeListClick(n, e));
+    const foot = h('div', { class: 'acts mae-foot' });
+    box.append(stat, drop, compRow, list, foot);
+    n.ui.mae = { stat, drop, comp, compRow, list, foot, key: '' };
+    n.el.addEventListener('dragover', (e) => { if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+    n.el.addEventListener('drop', (e) => { const fs = e.dataTransfer?.files; if (!fs || !fs.length) return; e.preventDefault(); e.stopPropagation(); maeOpen(fs); });
+  }
+  function maeListClick(n, e) {
+    const th = e.target.closest('th[data-s]');
+    if (th) { const [k, d] = String(n.params.ordem || 'compositor:1').split(':'); maeSetParam(n, 'ordem', `${th.dataset.s}:${k === th.dataset.s ? -(+d || 1) : 1}`); schedule(true); return; }
+    const tr = e.target.closest('tr[data-id]'); if (!tr || !n.mae) return;
+    pushUndo();
+    const id = tr.dataset.id, cur = maeSel(n.params), set = new Set(cur), F = n.mae.filtered.map((r) => r.id);
+    if (e.shiftKey && n.ui.maeAnchor && F.includes(n.ui.maeAnchor)) { const a = F.indexOf(n.ui.maeAnchor), b = F.indexOf(id); F.slice(Math.min(a, b), Math.max(a, b) + 1).forEach((x) => set.add(x)); }
+    else if (set.has(id)) set.delete(id); else set.add(id);
+    n.ui.maeAnchor = id;
+    if (n.params.usar === 'filtradas') { maeSetParam(n, 'usar', 'escolhidas'); flash('«interpretações»: as escolhidas na lista'); }
+    maeSetParam(n, 'sel', [...cur.filter((x) => set.has(x)), ...[...set].filter((x) => !cur.includes(x))].join('\n'));
+    schedule(true);
+  }
+  function maeRender(n) {
+    const U = n.ui.mae; if (!U) return;
+    const st = MDS.dl ? `baixando do Magenta… ${(MDS.dl.got / 1048576).toFixed(1)}${MDS.dl.total ? ` de ${(MDS.dl.total / 1048576).toFixed(1)}` : ''} MB` : maeStatus();
+    U.stat.textContent = st + (MDS.note ? `\n${MDS.note}` : '');
+    const ready = MDS.st === 'ready' && n.mae;
+    U.drop.hidden = !!ready && !MDS.dl;
+    if (!U.drop.hidden) U.drop.innerHTML = MDS.dl ? progSVG(st, MDS.dl.total ? MDS.dl.got / MDS.dl.total : null) : MDS.st === 'loading' ? progSVG(st, null) : ioDropSVG('abra o arquivo maestro-v3.0.0-midi.zip (ou solte aqui)');
+    U.compRow.hidden = U.list.hidden = U.foot.hidden = !ready;
+    if (!ready) { U.key = ''; return; }
+    const M = n.mae, compV = String(n.params.comp || '');
+    const ckey = `${MDS.ver}|${M.comps.map((c) => c.join(':')).join('|')}|${compV}`;
+    if (U.ckey !== ckey) {
+      U.ckey = ckey; U.comp.innerHTML = '';
+      U.comp.append(h('option', { value: '', text: `todos os compositores (${M.comps.reduce((s, c) => s + c[1], 0)})` }));
+      if (compV && !M.comps.some(([c]) => c === compV)) U.comp.append(h('option', { value: compV, text: `«${compV}» (${M.filtered.length})` }));
+      M.comps.forEach(([c, k]) => U.comp.append(h('option', { value: c, text: `${c} (${k})` })));
+      U.comp.value = compV;
+    }
+    const sel = new Set(M.chosen.map((r) => r.id)), [sk, sd] = String(n.params.ordem || 'compositor:1').split(':');
+    const key = `${MDS.ver}|${sk}${sd}|${M.filtered.map((r) => r.id).join('␟')}|${[...sel].join('␟')}`;
+    if (U.key !== key) {
+      U.key = key; const top = U.list.scrollTop;
+      const arrow = (k) => (k === sk ? (+sd < 0 ? ' ▼' : ' ▲') : '');
+      const L = M.filtered.slice(0, 2000);
+      U.list.innerHTML = `<table><thead><tr><th class="l" data-s="compositor" title="ordenar">compositor${arrow('compositor')}</th><th class="l" data-s="titulo" title="ordenar">título${arrow('titulo')}</th><th data-s="ano" title="ordenar">ano${arrow('ano')}</th><th data-s="split" title="ordenar (train, validation, test)">split${arrow('split')}</th><th data-s="duracao" title="ordenar">dur.${arrow('duracao')}</th></tr></thead><tbody>${
+        L.map((r) => `<tr data-id="${esc(r.id)}"${sel.has(r.id) ? ' class="on" aria-selected="true"' : ''} title="${esc(`${r.composer} — ${r.title} (${r.year ?? '?'}, ${r.split || '?'}, ${mmss(r.dur)})\n${r.midi}`)}"><td class="l mae-c">${esc(r.composer)}</td><td class="l mae-t">${esc(r.title)}</td><td>${r.year ?? ''}</td><td>${SPL[r.split] || esc(r.split)}</td><td>${mmss(r.dur)}</td></tr>`).join('')}${
+        M.filtered.length > L.length ? `<tr><td colspan="5" class="l">… mais ${M.filtered.length - L.length} (filtre para ver)</td></tr>` : ''}${M.filtered.length ? '' : '<tr><td colspan="5" class="l">nenhuma interpretação com estes filtros</td></tr>'}</tbody></table>`;
+      U.list.scrollTop = top;
+    }
+    U.foot.innerHTML = '';
+    U.foot.append(h('span', { class: 'gdesc', text: `${M.filtered.length} filtradas · ${M.chosen.length} ${n.params.usar === 'filtradas' ? 'usadas (as primeiras filtradas)' : 'escolhidas'}` }),
+      h('button', { class: 'gb', text: '+ filtradas', title: 'Escolhe todas as filtradas (até 2000)', onclick: () => { pushUndo(); const cur = maeSel(n.params), s = new Set(cur); M.filtered.slice(0, 2000).forEach((r) => s.add(r.id)); maeSetParam(n, 'usar', 'escolhidas'); maeSetParam(n, 'sel', [...s].join('\n')); schedule(true); } }),
+      h('button', { class: 'gb', text: 'limpar', title: 'Desfaz a escolha', onclick: () => { pushUndo(); maeSetParam(n, 'sel', ''); schedule(true); } }));
+  }
+  const maeActs = (n) => {
+    const inp = h('input', { type: 'file', hidden: '', multiple: '', accept: '.zip,.midi,.mid,.csv,.json', 'aria-label': 'maestro-v3.0.0-midi.zip' });
+    inp.addEventListener('change', () => { maeOpen(inp.files); inp.value = ''; }); n.ui.maeFile = inp;
+    const dir = h('input', { type: 'file', hidden: '', webkitdirectory: '', directory: '', multiple: '', 'aria-label': 'pasta maestro-v3.0.0' });
+    dir.addEventListener('change', () => { maeOpen(dir.files); dir.value = ''; }); n.ui.maeDir = dir;
+    return [inp, dir, h('button', { class: 'gb def', text: 'abrir maestro-v3.0.0-midi.zip…', title: 'Abre o zip do MAESTRO (só os MIDIs, 56 MB) baixado do site do Magenta; também valem arquivos .midi soltos com o maestro-v3.0.0.csv ou .json. Fica guardado no navegador para a próxima vez.', onclick: () => inp.click() }),
+      h('button', { class: 'gb', text: 'abrir pasta…', title: 'Abre a pasta extraída (maestro-v3.0.0, com o csv/json e as pastas dos anos)', onclick: () => dir.click() }),
+      h('button', { class: 'gb', text: 'baixar do Magenta', title: `Baixa ${MX.URL_ZIP} (56 MB) direto no navegador; se o navegador não deixar, baixe pelo endereço e abra o arquivo`, onclick: () => { maeDownload(); } }),
+      h('button', { class: 'gb', text: 'esquecer', title: 'Apaga a cópia do dataset guardada neste navegador', onclick: () => maeForget() })];
+  };
+  const MAE_PEDAL = [['prolongar', 'prolongar as notas (sustain)'], ['ignorar', 'ignorar (a tecla)']];
+  const maeOpts = (a) => ({ pedal: a.pedal === 'ignorar' ? 'ignorar' : 'prolongar', tol: Math.max(0, +a.tol || 0), ini: Math.max(0, +a.ini || 0), fim: Math.max(0, +a.fim || 0), quant: Math.max(0, +a.quant || 0) });
+  const maeSelVal = (rows, opts) => ({ kind: 'maestro-sel', rows, opts, label: `MAESTRO · ${rows.length} interpretação(ões)`, toJSON() { return this.label; } });
+  const maeVC = (d, label) => { const v = VC(d.chords, d.vels, { onsets: d.onsets, durs: d.durs }); v.label = label; return v; };
+
+  DEFS.maestro = { group: 'MAESTRO (piano, Magenta)', title: 'MAESTRO (dataset de piano)', noTiming: true, extview: true, wide: true, extInit: maeInit, extRender: maeRender, extActs: maeActs,
+    desc: 'Abre o dataset MAESTRO v3.0.0 (Google Magenta; 1276 interpretações de piano, 198,7 h, gravadas num Yamaha Disklavier no International Piano-e-Competition; licença CC BY-NC-SA 4.0, uso não comercial) e tira dele vozes para o patch. A página não traz o dataset: abra o maestro-v3.0.0-midi.zip (56 MB, baixado do site do Magenta), a pasta extraída ou arquivos .midi com o csv/json; ele fica guardado no navegador (e, no Live, na pasta da extensão). Na caixa: o compositor (com quantas interpretações), a lista (clique no título da coluna para ordenar; clique numa linha para escolher, ⇧-clique escolhe um trecho da lista). Os filtros (título, ano, split, duração) e a escolha ficam no patch — o dataset não.',
+    ins: [I('titulo', 'título (busca)', 'text', ''), I('ano', 'ano (2018, 2004-2009…)', 'text', ''),
+      I('split', 'split', 'sel', '', { opts: [['', 'todos'], ['train', 'train'], ['validation', 'validation'], ['test', 'test']] }),
+      I('dmin', 'duração mín. (min)', 'num', 0), I('dmax', 'duração máx. (min, 0 = sem)', 'num', 0),
+      I('usar', 'interpretações', 'sel', 'escolhidas', { opts: [['escolhidas', 'as escolhidas na lista'], ['filtradas', 'as primeiras filtradas (até o máximo)']] }), I('max', 'máximo (filtradas)', 'num', 8),
+      I('pedal', 'pedal', 'sel', 'prolongar', { opts: MAE_PEDAL }), I('tol', 'acorde: tolerância (ms)', 'num', 30),
+      I('ini', 'trecho: início (s)', 'num', 0), I('fim', 'trecho: fim (s, 0 = até o fim)', 'num', 30), I('quant', 'quantizar (grade em ms, 0 = não)', 'num', 0),
+      I('comp', 'compositor', 'hidden', ''), I('ordem', 'ordem', 'hidden', 'compositor:1'), I('sel', 'escolha', 'hidden', '')],
+    outs: [{ id: 'out', label: 'voz (as escolhidas, uma depois da outra)', t: 'chords' }, { id: 'poly', label: 'poly (uma voz por interpretação)', t: 'chords' },
+      { id: 'sel', label: 'seleção + metadados (análise, modelo)', t: 'any' }, { id: 'mf', label: 'mf-info (LZ: midi->cross)', t: 'any' }, { id: 'pedal', label: 'pedal (CC64 da 1ª)', t: 'bpf' }],
+    help: {
+      text: `## O dataset\nMAESTRO v3.0.0 (MIDI and Audio Edited for Synchronous TRacks and Organization): Curtis Hawthorne, Andriy Stasyuk, Adam Roberts, Ian Simon, Cheng-Zhi Anna Huang, Sander Dieleman, Erich Elsen, Jesse Engel e Douglas Eck, «Enabling Factorized Piano Music Modeling and Generation with the MAESTRO Dataset», ICLR 2019 (Google Magenta). 1276 interpretações (198,7 h) do International Piano-e-Competition, captadas num Yamaha Disklavier: notas com velocidade e os pedais (sustain CC64, sostenuto CC66, una corda CC67), alinhadas ao áudio em ~3 ms. O tempo dos MIDIs é o da interpretação (♩=120 fixo, 384 ticks por semínima, sem métrica escrita): por isso as vozes saem em ms, sem compassos, e a quantização fica desligada.\n\nLicença: Creative Commons Attribution Non-Commercial Share-Alike 4.0 (CC BY-NC-SA 4.0) — uso não comercial, com o crédito acima, e obras derivadas do dataset sob a mesma licença. Cite Hawthorne et al. 2019 ao publicar o que fizer com ele.\n\n## Como abrir\n1. Baixe ${MX.URL_ZIP} (56 MB; o site é magenta.withgoogle.com/datasets/maestro) e clique «abrir maestro-v3.0.0-midi.zip…» (ou solte o zip na caixa). Também vale a pasta extraída («abrir pasta…») ou arquivos .midi soltos com o maestro-v3.0.0.csv/.json (sem eles, cada .midi vira uma linha sem compositor).\n2. «baixar do Magenta» tenta baixar direto no navegador, com o progresso. Não foi testado aqui: o servidor do Google pode não deixar (CORS) — nesse caso a caixa diz o que fazer (baixar pelo endereço e abrir o arquivo).\n3. O zip fica guardado no navegador (IndexedDB) e reabre sozinho na próxima vez; «esquecer» apaga essa cópia. Dentro do Live, ele também vai para a pasta de dados da extensão (magenta/maestro/, em partes), como os modelos do Magenta. Num site (GitHub Pages), pôr o zip em magenta/maestro/ ao lado do index.html faz ele abrir sozinho. Sem nada disso, a caixa só pede o arquivo (não é um erro).\n\n## As saídas\n- voz: as interpretações escolhidas, uma depois da outra (1 s entre elas); notas que começam a menos de «tolerância» ms do primeiro ataque do grupo viram um acorde; velocidades de cada nota; o trecho [início, fim) em segundos (as peças são longas: o padrão é 0–30 s). Pedal «prolongar»: a nota solta com o sustain abaixado soa até o pedal subir (como no Magenta); «ignorar»: a duração da tecla.\n- poly: uma voz por interpretação, todas a partir de 0 (até 16).\n- seleção: as interpretações e as opções, para o «MAESTRO: análise do corpus» e o «MAESTRO: modelar e gerar» (eles leem as peças inteiras, ou o trecho).\n- mf-info: uma trilha por interpretação, para o midi->cross da LZ.\n- pedal: a curva do CC64 da primeira escolhida, no trecho.`,
+      app: 'Sem o dataset aberto, a caixa pede o arquivo e as saídas ficam vazias (não é um erro). Com ele: as primeiras interpretações de Chopin (filtradas, até 3), 20 s de cada; a Partitura mostra a voz e ▶ toca.',
+      patch: () => ({ nodes: [
+        { id: 'h1', type: 'maestro', x: 560, y: 40, params: { comp: 'Frédéric Chopin', usar: 'filtradas', max: 3, fim: 20 } },
+        { id: 'h2', type: 'partitura', x: 1090, y: 40, params: { approx: '2' } }],
+      cables: [C('h1', 'out', 'h2', 'in')] }),
+    },
+    run: (a, n) => {
+      maeEnsure();
+      // sem o dataset: a seleção sai vazia (a análise e o modelo também pedem o arquivo, sem erro)
+      if (MDS.st !== 'ready') { n.mae = null; return { sel: maeSelVal([], maeOpts(a)), info: MDS.st === 'loading' ? maeStatus() : `${NEED}${MDS.note ? `\n${MDS.note}` : ''}` }; }
+      const rows = MDS.cat.rows, f = { comp: a.comp, titulo: a.titulo, ano: a.ano, split: a.split, dmin: a.dmin, dmax: a.dmax };
+      const [sk, sd] = String(a.ordem || 'compositor:1').split(':');
+      const filtered = MX.sort(MX.filter(rows, f), sk, +sd < 0 ? -1 : 1), comps = MX.composers(MX.filter(rows, { ...f, comp: '' }));
+      const ids = maeSel(a), chosen = a.usar === 'filtradas' ? filtered.slice(0, Math.max(1, Math.round(+a.max || 1))) : ids.map((id) => MDS.byId.get(id)).filter(Boolean);
+      n.mae = { filtered, comps, chosen };
+      const lost = a.usar === 'filtradas' ? 0 : ids.length - chosen.length;
+      const head = `${filtered.length} de ${rows.length} com os filtros · ${chosen.length} ${a.usar === 'filtradas' ? 'usadas' : 'escolhidas'}${lost ? ` · ${lost} escolhida(s) que não estão neste dataset` : ''}`;
+      if (!chosen.length) return { sel: maeSelVal([], maeOpts(a)), info: `${head}\n${a.usar === 'filtradas' ? 'nenhuma interpretação com estes filtros' : 'clique nas linhas da lista para escolher (ou «interpretações: as primeiras filtradas»)'}` };
+      const opts = maeOpts(a), sel = maeSelVal(chosen, opts);
+      const use = chosen.slice(0, 16), P = use.map((r) => maePerf(r.id)), waiting = P.filter((p) => !p.val && !p.err);
+      const list = chosen.slice(0, 8).map((r) => `· ${r.composer} — ${r.title} (${r.year ?? '?'}, ${r.split || '?'}, ${mmss(r.dur)})`).join('\n') + (chosen.length > 8 ? `\n… e mais ${chosen.length - 8}` : '');
+      if (waiting.length) { Promise.allSettled(waiting).then(() => schedule(true)); return { sel, info: `${head}\nlendo ${waiting.length} arquivo(s)…\n${list}` }; }
+      const bad = use.map((r, i) => (P[i].err ? `⚠ ${r.title}: ${P[i].err}` : '')).filter(Boolean);
+      const okR = use.filter((_, i) => P[i].val), perfs = P.filter((p) => p.val).map((p) => p.val);
+      if (!perfs.length) return { sel, info: `${head}\n${bad.join('\n')}` };
+      const LIM = 6000, cut = [];
+      const vs = perfs.map((p, i) => { const d = MX.toVoice(p, opts); if (d.chords.length > LIM) { cut.push(okR[i].title); ['chords', 'vels', 'onsets', 'durs'].forEach((k) => { d[k] = d[k].slice(0, LIM); }); } return d; });
+      // a voz: uma depois da outra, com 1 s entre elas
+      const J = { chords: [], vels: [], onsets: [], durs: [] }; let off = 0;
+      vs.forEach((d) => { d.chords.forEach((c, i) => { J.chords.push(c); J.vels.push(d.vels[i]); J.onsets.push(+(d.onsets[i] + off).toFixed(3)); J.durs.push(d.durs[i]); }); off += Math.max(0, ...d.onsets.map((o, i) => o + d.durs[i])) + 1000; });
+      const PV = vs.map((d, i) => [d, `${okR[i].composer.split(/\s+/).pop()} · ${okR[i].title}`.slice(0, 48)]).filter(([d]) => d.chords.length);
+      const poly = PV.length ? POLY.make(PV.map(([d, l]) => maeVC(d, l)), PV.map(([, l]) => l)) : null;
+      const mf = { kind: 'mf-info', tracks: perfs.map((p, k) => MX.mfTrack(p, opts, k + 1)).filter((t) => t.length), label: `mf-info · ${perfs.length} interpretação(ões)` };
+      const ped = BPF.val(MX.pedalCurve(perfs[0], opts), 'free', 'step');
+      const nN = vs.reduce((s, d) => s + d.n, 0);
+      return { out: maeVC(J, 'MAESTRO'), poly, sel, mf, pedal: ped,
+        info: `${head}\n→ ${J.chords.length} acordes · ${nN} notas · trecho ${opts.ini}–${opts.fim || 'fim'} s · pedal: ${opts.pedal}${opts.quant ? ` · grade ${opts.quant} ms` : ''}${chosen.length > use.length ? ` · voz/poly: as primeiras ${use.length}` : ''}${cut.length ? `\ncortadas em ${LIM} acordes: ${cut.join(', ')} (use o trecho)` : ''}${bad.length ? '\n' + bad.join('\n') : ''}\n${list}` };
+    } };
+
+  // ───────────────────────── gráficos (preto e branco) ─────────────────────────
+  const W = 440;
+  function bars(o, x, y, w, hh, vals, title, { lab = null, every = 1, mid = null, fmt = null } = {}) {
+    const mx = Math.max(1e-12, ...vals), n = vals.length, bw = (w - 4) / n, top = y + 15, bh = hh - 15 - (lab ? 12 : 3);
+    o.push(`<rect x="${x}" y="${y}" width="${w}" height="${hh}" fill="none" stroke="var(--ink)"/>`, SVGT(x + 4, y + 12, title, 13, 'start'));
+    if (mid != null) o.push(`<line x1="${x + 2 + (mid + 0.5) * bw}" x2="${x + 2 + (mid + 0.5) * bw}" y1="${top}" y2="${top + bh}" stroke="var(--ink)" stroke-width="0.5" stroke-dasharray="2 2"/>`);
+    vals.forEach((v, i) => { const hgt = (v / mx) * bh; if (hgt > 0.05) o.push(`<rect x="${(x + 2 + i * bw + (bw > 3 ? 0.4 : 0)).toFixed(2)}" y="${(top + bh - hgt).toFixed(2)}" width="${Math.max(0.6, bw - (bw > 3 ? 0.8 : 0)).toFixed(2)}" height="${hgt.toFixed(2)}" fill="var(--ink)"><title>${esc(fmt ? fmt(i, v) : `${lab ? lab(i) : i}: ${(v * 100).toFixed(1)}%`)}</title></rect>`); });
+    if (lab) for (let i = 0; i < n; i += every) o.push(SVGT(x + 2 + (i + 0.5) * bw, y + hh - 2, lab(i), 10));
+  }
+  function curve(o, x, y, w, hh, vals, title, unit) {
+    const mx = Math.max(1e-9, ...vals), n = vals.length, top = y + 15, bh = hh - 18;
+    o.push(`<rect x="${x}" y="${y}" width="${w}" height="${hh}" fill="none" stroke="var(--ink)"/>`, SVGT(x + 4, y + 12, `${title} (máx. ${+mx.toFixed(1)} ${unit})`, 13, 'start'));
+    if (n > 1) o.push(`<polyline fill="none" stroke="var(--ink)" stroke-width="1.2" points="${vals.map((v, i) => `${(x + 3 + (i / (n - 1)) * (w - 6)).toFixed(1)},${(top + bh - (v / mx) * bh).toFixed(1)}`).join(' ')}"/>`);
+  }
+  const IOI_LAB = MX.IOI_EDGES.slice(0, -1).map((e, i) => (i === MX.IOI_EDGES.length - 2 ? `${e}+` : String(e)));
+  function chartsSVG(F, foot) {
+    const P = MX.prop, o = [], H = 386;
+    o.push(`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Medidas do corpus"><rect width="${W}" height="${H}" fill="var(--paper)"/>`);
+    bars(o, 4, 4, 214, 72, P(F.pc), 'classes de altura', { lab: (i) => MX.PCN[i] });
+    bars(o, 222, 4, 214, 72, P(F.chord), 'notas por acorde', { lab: (i) => (i === 11 ? '12+' : String(i + 1)) });
+    bars(o, 4, 80, 432, 72, P(F.reg), 'registro (A0–C8)', { lab: (i) => ((i + 21) % 12 === 0 ? `C${(i + 21) / 12 - 1}` : ''), fmt: (i, v) => `${name12((i + 21) * 100)}: ${(v * 100).toFixed(2)}%` });
+    const vb = []; for (let i = 0; i < 16; i++) vb.push(F.vel.slice(i * 8, i * 8 + 8).reduce((s, x) => s + x, 0));
+    bars(o, 4, 156, 214, 72, P(vb), 'velocidade', { lab: (i) => (i % 4 === 0 ? String(i * 8) : ''), fmt: (i, v) => `${i * 8}–${i * 8 + 7}: ${(v * 100).toFixed(1)}%` });
+    bars(o, 222, 156, 214, 72, P(F.ioi), 'IOI (ms entre ataques)', { lab: (i) => (i % 3 === 0 ? IOI_LAB[i] : ''), fmt: (i, v) => `${IOI_LAB[i]} ms: ${(v * 100).toFixed(1)}%` });
+    bars(o, 4, 232, 432, 66, P(F.int), 'intervalo melódico (nota de cima, semitons)', { lab: (i) => ((i - 24) % 12 === 0 ? String(i - 24) : ''), mid: 24, fmt: (i, v) => `${i - 24 > 0 ? '+' : ''}${i - 24}: ${(v * 100).toFixed(1)}%` });
+    curve(o, 4, 302, 432, 56, F.dens.length > 1 ? F.dens : [0, 0], 'densidade da 1ª (notas/s)', 'notas/s');
+    o.push(SVGT(4, H - 8, foot.length > 82 ? foot.slice(0, 81) + '…' : foot, 13, 'start'), '</svg>');
+    return o.join('');
+  }
+  const COLS = [['compositor', 108, 'l'], ['peças', 28], ['notas/s', 40], ['vel.', 30], ['altura', 38], ['IOI', 34], ['acorde', 36], ['pedal', 36]];
+  function tableSVG(rows, title) {
+    const rh = 17, H = 22 + rh * (rows.length + 1) + 6, o = [`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}"><rect width="${W}" height="${H}" fill="var(--paper)"/>`, SVGT(4, 15, title, 13, 'start')];
+    let x = 4; const xs = COLS.map(([, w]) => { const r = x; x += w; return r; }), xpc = x + 4, wpc = W - xpc - 4;
+    const yh = 22 + rh - 4; COLS.forEach(([t, w, al], i) => o.push(SVGT(al === 'l' ? xs[i] + 2 : xs[i] + w - 2, yh, t, 12, al === 'l' ? 'start' : 'end')));
+    o.push(SVGT(xpc, yh, 'classes C…B', 12, 'start'), `<line x1="4" x2="${W - 4}" y1="${yh + 4}" y2="${yh + 4}" stroke="var(--ink)" stroke-width="1.5"/>`);
+    rows.forEach((r, k) => {
+      const y = 22 + rh * (k + 2) - 4, s = r.s, vals = [r.name.length > 17 ? r.name.slice(0, 16) + '…' : r.name, s.pieces, s.nps.toFixed(1), s.vel.toFixed(0), name12(Math.round(s.pitch) * 100), Math.round(s.ioi), s.chord.toFixed(2), `${s.ped.toFixed(0)}%`];
+      vals.forEach((v, i) => o.push(SVGT(COLS[i][2] === 'l' ? xs[i] + 2 : xs[i] + COLS[i][1] - 2, y, String(v), 13, COLS[i][2] === 'l' ? 'start' : 'end')));
+      const p = MX.prop(r.pc), mx = Math.max(1e-9, ...p), bw = wpc / 12;
+      p.forEach((v, i) => o.push(`<rect x="${(xpc + i * bw + 0.5).toFixed(1)}" y="${(y - (v / mx) * 11).toFixed(1)}" width="${(bw - 1).toFixed(1)}" height="${((v / mx) * 11).toFixed(1)}" fill="var(--ink)"/>`));
+      o.push(`<line x1="4" x2="${W - 4}" y1="${y + 4}" y2="${y + 4}" stroke="var(--ink)" stroke-width="0.5" stroke-dasharray="1 2"/>`);
+    });
+    o.push('</svg>');
+    return o.join('');
+  }
+
+  // ───────────────────────── «MAESTRO: análise do corpus» ─────────────────────────
+  const AIDS = ['in', 'b', 'c', 'd'];
+  const maeInputs = (a, ids) => ids.map((id, k) => ({ k, v: a[id] })).filter((x) => x.v && (x.v.kind === 'maestro-sel' || (x.v.kind === 'chords' && x.v.chords?.length)));
+  const voicePerfs = (v) => (POLY.isPoly(v) ? v.vozes : [v]).filter((x) => x.chords?.length).map((x) => MX.fromVoice(x));
+  const sumLine = (s) => `${s.pieces} peça(s) · ${s.notes} notas · ${s.minutes.toFixed(1)} min · ${s.nps.toFixed(1)} notas/s · vel ${s.vel.toFixed(0)}±${s.velSd.toFixed(0)} · ${name12(s.lo * 100)}–${name12(s.hi * 100)} (média ${name12(Math.round(s.pitch) * 100)}) · IOI ${Math.round(s.ioi)} ms · ${s.chord.toFixed(2)} notas/acorde · pedal ${s.ped.toFixed(0)}%${s.una ? ` · una corda ${s.una.toFixed(0)}%` : ''}${s.sost ? ` · sostenuto ${s.sost.toFixed(0)}%` : ''} · dur. ${Math.round(s.dur)} ms (com pedal ${Math.round(s.durSus)})`;
+  const anaActs = (n) => [h('button', { class: 'gb', text: '■ parar', title: 'Interrompe a leitura dos arquivos', onclick: () => maeStop(n, 'anaJob') }), h('button', { class: 'gb', text: '↻ refazer', title: 'Lê e analisa de novo', onclick: () => maeRedo(n, 'anaJob') })];
+  DEFS['maestro-analise'] = { group: 'MAESTRO (piano, Magenta)', title: 'MAESTRO: análise do corpus', noTiming: true, extview: true, wide: true, extActs: anaActs,
+    desc: 'Mede as interpretações que chegam do objeto MAESTRO (saída «seleção»), ou qualquer voz/poly: classes de altura, registro (pela nota), velocidades, IOI (ms entre ataques sucessivos, com os acordes juntados pela tolerância do maestro), densidade (notas por segundo ao longo da 1ª peça), notas por acorde, intervalo melódico entre as notas de cima de ataques sucessivos, uso dos pedais (% do tempo com o pedal abaixado: sustain, una corda, sostenuto) e durações (a da tecla e a do som com o sustain). Até quatro entradas; «comparar compositores» faz uma tabela por compositor (por exemplo Chopin × Bach) com o perfil de classes de altura. Muitos arquivos são lidos em segundo plano, com progresso e ■ parar: a tela não trava.',
+    ins: [I('in', 'seleção (maestro) ou voz', 'any'), I('b', 'entrada 2', 'any'), I('c', 'entrada 3', 'any'), I('d', 'entrada 4', 'any'),
+      I('modo', 'mostrar', 'sel', 'soma', { opts: [['soma', 'medidas (tudo junto)'], ['compositores', 'comparar compositores'], ['pecas', 'uma linha por interpretação']] }),
+      I('fonte', 'ler', 'sel', 'inteira', { opts: [['inteira', 'as peças inteiras'], ['trecho', 'só o trecho do maestro']] }), I('win', 'densidade: janela (s)', 'num', 1), I('maxp', 'no máximo (interpretações por entrada)', 'num', 300)],
+    outs: [{ id: 'pcs', label: 'classes de altura (12, proporções)', t: 'num' }, { id: 'reg', label: 'registro (88 teclas, proporções)', t: 'num' }, { id: 'vel', label: 'velocidades (128, proporções)', t: 'num' },
+      { id: 'ioi', label: 'IOI (13 faixas, proporções)', t: 'num' }, { id: 'acordes', label: 'notas por acorde (1…12+)', t: 'num' }, { id: 'int', label: 'intervalos −24…+24', t: 'num' },
+      { id: 'dens', label: 'densidade da 1ª (notas/s)', t: 'bpf' }, { id: 'resumo', label: 'resumo (números)', t: 'num' }, { id: 'tabela', label: 'tabela (compositores / peças)', t: 'any' }],
+    help: {
+      text: `## As medidas\n- IOI: as faixas são ${IOI_LAB.join(', ')} ms.\n- resumo (números, nesta ordem): ${MX.SUM_KEYS.join(', ')} — peças, notas, minutos, notas/s, velocidade média e desvio, altura média (MIDI), mais grave, mais aguda, IOI mediano (ms), notas por acorde, % de sustain, % de sostenuto, % de una corda, duração média da tecla e do som (ms), duração mediana, classe de altura mais frequente (0 = C).\n- «comparar compositores» junta as interpretações de cada compositor (as contagens somam; o pedal pesa pela duração).\n- Ler as peças inteiras de um compositor com muitas interpretações (Chopin tem mais de 200) leva alguns segundos: a caixa mostra o progresso, ■ parar interrompe, ↻ refazer recomeça. O resultado fica guardado enquanto as entradas não mudam.\n\nDataset: MAESTRO v3.0.0, Hawthorne et al. (ICLR 2019), Google Magenta, CC BY-NC-SA 4.0 (uso não comercial).`,
+      app: 'À esquerda, as interpretações de Chopin (filtradas, até 10) do objeto MAESTRO — sem o dataset aberto, a análise só avisa. Abaixo, uma melodia escrita (Acorde) entra na entrada 2: ela é medida já, sem o dataset.',
+      patch: () => ({ nodes: [
+        { id: 'h1', type: 'maestro', x: 560, y: 40, params: { comp: 'Frédéric Chopin', usar: 'filtradas', max: 10 } },
+        { id: 'h2', type: 'acorde', x: 560, y: 1000, params: { text: '6000;6200;6400 6700;6500;6400;6200;6000 6400 6700;5900;6000' } },
+        { id: 'h3', type: 'maestro-analise', x: 1090, y: 40, params: {} }],
+      cables: [C('h1', 'sel', 'h3', 'in'), C('h2', 'out', 'h3', 'b')] }),
+    },
+    run: (a, n) => {
+      const INS = maeInputs(a, AIDS), opt = { win: Math.max(0.25, +a.win || 1) };
+      if (!INS.length) return { info: 'ligue a saída «seleção» de um objeto MAESTRO (ou uma voz) na entrada' };
+      const hasSel = INS.some((x) => x.v.kind === 'maestro-sel');
+      if (hasSel) maeEnsure();
+      if (hasSel && MDS.st !== 'ready') { if (!INS.some((x) => x.v.kind === 'chords')) return { info: MDS.st === 'loading' ? maeStatus() : NEED }; }
+      const maxp = Math.max(1, Math.round(+a.maxp || 300));
+      // as vozes: na hora; as seleções: em segundo plano
+      const items = [], now = [];
+      INS.forEach((x) => {
+        if (x.v.kind === 'chords') { voicePerfs(x.v).forEach((p, j) => now.push({ name: `entrada ${x.k + 1}${POLY.isPoly(x.v) ? ` · voz ${j + 1}` : ''}`, comp: `entrada ${x.k + 1}`, perf: p, tol: 30 })); return; }
+        if (MDS.st === 'ready') x.v.rows.slice(0, maxp).forEach((r) => items.push({ r, o: x.v.opts }));
+      });
+      const key = JSON.stringify([MDS.ver, a.fonte, opt.win, items.map((it) => [it.r.id, it.o.tol, a.fonte === 'trecho' ? [it.o.ini, it.o.fim] : 0])]);
+      let got = [];
+      if (items.length) {
+        const J = maeJob(n, 'anaJob', key, items, async (it) => { const F = await maeWork(it.r.id, 'features', { tol: it.o.tol, win: opt.win, trim: a.fonte === 'trecho' ? { ini: it.o.ini, fim: it.o.fim } : null }); return { name: `${it.r.composer} — ${it.r.title}`, comp: it.r.composer, F }; });
+        const st = maeJobState(n, 'anaJob', J, 'analisando'); if (st.show) return st.show;
+        got = st.res;
+      }
+      const bad = got.filter((x) => x.err); got = got.filter((x) => x.F);
+      const all = [...now.map((x) => ({ name: x.name, comp: x.comp, F: MX.features(x.perf, { tol: x.tol, win: opt.win }) })), ...got];
+      if (!all.length) return { info: `${hasSel && !items.length ? 'nenhuma interpretação escolhida no objeto MAESTRO' : 'nada para medir'}${bad.length ? `\n${bad.map((x) => `⚠ ${x.err}`).join('\n')}` : ''}` };
+      const T = MX.merge(all.map((x) => x.F)), S = MX.summary(T), by = new Map();
+      all.forEach((x) => { if (!by.has(x.comp)) by.set(x.comp, []); by.get(x.comp).push(x.F); });
+      const compRows = [...by].map(([name, Fs]) => { const F = MX.merge(Fs); return { name, s: MX.summary(F), pc: F.pc }; });
+      const pieceRows = all.map((x) => ({ name: x.name, s: MX.summary(x.F), pc: x.F.pc }));
+      const rowsT = a.modo === 'pecas' ? pieceRows : compRows;
+      const tabela = { kind: 'maestro-tabela', cols: MX.SUM_KEYS, rows: rowsT.map((r) => ({ name: r.name, values: MX.SUM_KEYS.map((k) => +(+r.s[k]).toFixed(3)), pc: MX.prop(r.pc).map((x) => +x.toFixed(4)) })), label: `tabela · ${rowsT.length} linha(s)`, toJSON() { return this.label; } };
+      const ext = a.modo === 'soma' ? chartsSVG(T, `${S.pieces} peça(s) · ${S.notes} notas · pedal ${S.ped.toFixed(0)}% · dur. ${Math.round(S.dur)} ms`) : tableSVG(rowsT.slice(0, 40), a.modo === 'pecas' ? `uma linha por interpretação (${rowsT.length})` : `comparar compositores (${rowsT.length})`);
+      const dens = BPF.val(T.dens.map((y, i) => ({ x: +(i * T.densWin).toFixed(3), y: +y.toFixed(3) })), 'free', 'step');
+      return { pcs: VN(MX.prop(T.pc)), reg: VN(MX.prop(T.reg)), vel: VN(MX.prop(T.vel)), ioi: VN(MX.prop(T.ioi)), acordes: VN(MX.prop(T.chord)), int: VN(MX.prop(T.int)), dens, resumo: VN(MX.SUM_KEYS.map((k) => +S[k])), tabela, ext,
+        info: [`tudo junto: ${sumLine(S)}`, ...(a.modo !== 'soma' || by.size > 1 ? rowsT.slice(0, 24).map((r) => `${r.name}: ${sumLine(r.s)}`) : []), ...(rowsT.length > 24 && a.modo !== 'soma' ? [`… e mais ${rowsT.length - 24}`] : []), ...bad.map((x) => `⚠ ${x.err}`)].join('\n') };
+    } };
+
+  // ───────────────────────── «MAESTRO: modelar e gerar» ─────────────────────────
+  const MODOS = [['lz', 'LZ (Assayag): dicionário de padrões'], ['pst', 'PST (árvore de sufixos de predição)'], ['markov', 'Markov de ordem variável'], ['humanizar', 'humanizar como… (dinâmica e tempo do corpus)']];
+  const mdlActs = (n) => [h('button', { class: 'gb def', text: '↻ outra', title: 'Muda a semente', onclick: () => { maeSetParam(n, 'seed', String((Number(n.params.seed) || 0) + 1)); schedule(true); } }),
+    h('button', { class: 'gb', text: '■ parar', title: 'Interrompe a leitura dos arquivos', onclick: () => maeStop(n, 'mdlJob') }), h('button', { class: 'gb', text: '↻ refazer', title: 'Lê e aprende de novo', onclick: () => maeRedo(n, 'mdlJob') })];
+  const lzRead = (x) => OMLZ.read(String(x));
+  /** uma impressão digital da voz (para saber se o corpus mudou) */
+  const maeHash = (v) => { let x = 2166136261; const s = JSON.stringify([v.chords, v.onsets, v.durs, v.vels]); for (let i = 0; i < s.length; i++) x = Math.imul(x ^ s.charCodeAt(i), 16777619) >>> 0; return `${s.length}:${x}`; };
+  /** o que cada modo guarda de uma interpretação (para não segurar as peças inteiras na memória) */
+  const mdlPiece = (mode, perf, o, maxn) => (mode === 'lz' || mode === 'pst' ? MX.mfTrack(perf, { pedal: o.pedal }, 1, maxn) : mode === 'markov' ? MX.group(MX.notesOf(perf, { pedal: o.pedal }), o.tol) : MX.perfStats(perf, { tol: o.tol }));
+  function mdlTrain(mode, pieces, a) {
+    if (mode === 'lz' || mode === 'pst') {
+      const tr = pieces.filter((t) => Array.isArray(t) && t.length); if (!tr.length) throw new Error('nenhuma nota para aprender');
+      const cross = OMLZ.call('listmidi->cross', [OMLZ.lisp(tr.map((t) => [t])), null, 50, null, null, 0], { ms: 60000 })[0];
+      const nSl = OMLZ.L().toArray(cross).length;
+      if (mode === 'lz') {
+        const r = OMLZ.call('%lzify', [cross, 4, lzRead('pitch_durationvelocity')], { ms: 120000 })[0], [dict] = OMLZ.L().toArray(r);
+        const size = OMLZ.js(OMLZ.call('lzsize', [dict])[0]);
+        return { mode, cross, dict, nSl, notes: tr.reduce((s, t) => s + t.length, 0), model: lzV('lz-dict', dict, `dicionário LZ (MAESTRO) · ${size} nós`, { cross: true }), size };
+      }
+      const L = Math.max(1, Math.min(12, Math.round(+a.ordem || 6))), pst = OMLZ.call('pstify', [cross, lzRead('0.05'), lzRead('0.1'), lzRead('0.01'), lzRead('1.5'), L, lzRead('pitch_durationvelocity')], { ms: 120000 })[0];
+      return { mode, cross, pst, nSl, notes: tr.reduce((s, t) => s + t.length, 0), model: lzV('lz-pst', pst, `PST (MAESTRO) · contexto até ${L}`), L };
+    }
+    if (mode === 'markov') { const G = pieces.filter((g) => Array.isArray(g) && g.length); if (!G.length) throw new Error('nenhuma nota para aprender'); return { mode, model: MX.markovTrain(G, { order: a.ordem, modo: a.simb }), G }; }
+    const S = pieces.filter((x) => x && x.n); if (!S.length) throw new Error('as interpretações têm notas de menos para aprender');
+    return { mode, model: MX.perfModel([], {}, S) };
+  }
+  DEFS['maestro-modelo'] = { group: 'MAESTRO (piano, Magenta)', title: 'MAESTRO: modelar e gerar', noTiming: true, extview: true, wide: true, extActs: mdlActs,
+    desc: 'Aprende com as interpretações que chegam do MAESTRO (saída «seleção»: um compositor, ou as peças escolhidas) — ou com uma voz — e gera material novo no mesmo estilo. LZ e PST: as notas viram fatias (listmidi->cross) e o dicionário de padrões de Lempel-Ziv (ou a árvore de sufixos de predição) da biblioteca LZ (G. Assayag, IRCAM) improvisa uma sequência nova; o dicionário sai para LZGenerate/LZprint e as fatias para LZify. Markov: os acordes viram símbolos (alturas, classe de velocidade, de IOI e de duração, juntos ou em cadeias separadas) numa cadeia de ordem variável (recua para contextos menores quando não conhece o contexto), com temperatura (0 = sempre o mais provável) e semente; a sequência de acordes do corpus sai em «estados» para o objeto markov. Humanizar como…: aprende a dinâmica (média, variação lenta, inclinação pela altura, acento da nota de cima) e os desvios de tempo (rubato, relativo à mediana local) e aplica a qualquer voz ligada em «voz a humanizar».',
+    ins: [I('sel', 'corpus (seleção do maestro, ou voz)', 'any'), I('in', 'voz a humanizar', 'in'),
+      I('modo', 'modelo', 'sel', 'lz', { opts: MODOS }), I('len', 'tamanho (acordes / fatias)', 'num', 64), I('ordem', 'ordem (Markov) · contexto máx. (LZ, 0 = sem) · L (PST)', 'num', 3), I('temp', 'temperatura (Markov)', 'num', 1),
+      I('simb', 'símbolos (Markov)', 'sel', 'junto', { opts: [['junto', 'acorde + velocidade + IOI + duração'], ['separado', 'acordes; ritmo e dinâmica à parte']] }),
+      I('fonte', 'ler', 'sel', 'trecho', { opts: [['trecho', 'só o trecho do maestro'], ['inteira', 'as peças inteiras']] }), I('maxn', 'notas por peça (LZ/PST, máx.)', 'num', 300), I('maxp', 'peças (máx.)', 'num', 12),
+      I('amount', 'intensidade (humanizar, 0–1)', 'num', 1), I('art', 'articulação (humanizar)', 'sel', 'entrada', { opts: [['entrada', 'a da voz'], ['corpus', 'a do corpus']] }), SEED],
+    outs: [OUT, { id: 'modelo', label: 'modelo (LZ: dicionário · PST · Markov · interpretação)', t: 'any' }, { id: 'seq', label: 'fatias (LZ/PST, para LZify)', t: 'any' },
+      { id: 'estados', label: 'estados (acordes do corpus, para o markov)', t: 'chords' }, { id: 'curva', label: 'dinâmica (humanizar)', t: 'bpf' }, { id: 'tempo', label: 'fator de tempo (humanizar)', t: 'bpf' }],
+    help: {
+      text: '## Os modos\n- LZ / PST: o mesmo motor dos objetos LZify/LZGenerate e PSTify/PSTGenerate (biblioteca LZ de Gérard Assayag, IRCAM, GPL v3), aplicado às notas do corpus (cada peça, até «notas por peça», entra como um trecho do listmidi->cross). O Lisp roda na hora: muitas notas deixam o aprendizado lento (comece com 300 por peça e poucas peças). «ordem» é o contexto máximo do gerador (LZ) ou o comprimento L da PST. A temperatura não vale para LZ/PST.\n- Markov: «símbolos» junta alturas, velocidade (6 faixas), IOI e duração (13 faixas, de 40 ms a 2,7 s) num símbolo só — reproduz frases do corpus com o ritmo delas — ou separa alturas e ritmo em duas cadeias. Os valores de cada faixa são as medianas do corpus.\n- Humanizar como…: a voz ligada em «voz a humanizar» ganha o rubato (as oscilações do tempo local do corpus — a mediana de 17 IOIs em volta, em log —, com a memória AR(1) aprendida; o MIDI de interpretação não separa o ritmo escrito da expressão, e a mediana deixa de fora a maior parte do ritmo escrito), a curva de dinâmica (AR(1)), a inclinação da velocidade pela altura e o acento da nota de cima dos acordes. Intensidade 0 devolve a voz como veio; articulação «a do corpus» faz cada nota durar a fração do IOI típica do corpus. A voz sai sem compassos (o tempo deixa de ser métrico).\n- A mesma semente dá sempre o mesmo resultado.\n\n## Magenta\nOs objetos Magenta do OMDamião (Continue, Continue (bateria)) rodam a MelodyRNN e a DrumsRNN em JavaScript próprio (OMMAG), sem a biblioteca magenta.js. A Performance RNN e o Music Transformer — as redes do Magenta treinadas no Piano-e-Competition/MAESTRO — não estão embutidas: por isso este objeto não gera com rede neural.\n\nDataset: MAESTRO v3.0.0, Hawthorne et al. (ICLR 2019), Google Magenta, CC BY-NC-SA 4.0 (uso não comercial).',
+      app: 'Sem o dataset aberto, os objetos só avisam. Com ele: um modelo de Markov (ordem 3) aprende 20 s de cada uma das primeiras 6 interpretações de Chopin e gera 64 acordes (Partitura, A); outro humaniza uma escala escrita como Chopin (B). Mude a semente para outra versão.',
+      patch: () => ({ nodes: [
+        { id: 'h1', type: 'maestro', x: 560, y: 40, params: { comp: 'Frédéric Chopin', usar: 'filtradas', max: 6, fim: 20 } },
+        { id: 'h2', type: 'maestro-modelo', x: 1090, y: 40, params: { modo: 'markov', ordem: 3, len: 64 } },
+        { id: 'h3', type: 'acorde', x: 560, y: 1000, params: { text: '6000;6200;6400;6500;6700;6900;7100;7200;7100;6900;6700;6500;6400;6200;6000' } },
+        { id: 'h4', type: 'voz', x: 560, y: 1300, params: { r: '1/8 1/8 1/8 1/8 1/8 1/8 1/8 1/4 1/8 1/8 1/8 1/8 1/8 1/8 1/2' } },
+        { id: 'h5', type: 'maestro-modelo', x: 1090, y: 900, params: { modo: 'humanizar' } },
+        { id: 'h6', type: 'partitura', x: 1620, y: 40, params: { approx: '2' } }],
+      cables: [C('h1', 'sel', 'h2', 'sel'), C('h3', 'out', 'h4', 'in'), C('h1', 'sel', 'h5', 'sel'), C('h4', 'out', 'h5', 'in'), C('h2', 'out', 'h6', 'in'), C('h5', 'out', 'h6', 'b')] }),
+    },
+    run: (a, n) => {
+      const S = a.sel, mode = MODOS.some(([k]) => k === a.modo) ? a.modo : 'lz', seed = Math.round(+a.seed || 0);
+      if (!S || !(S.kind === 'maestro-sel' || (S.kind === 'chords' && S.chords?.length))) return { info: 'ligue a saída «seleção» de um objeto MAESTRO (ou uma voz) em «corpus»' };
+      const maxn = Math.max(10, Math.round(+a.maxn || 300)), maxp = Math.max(1, Math.round(+a.maxp || 12));
+      let pieces, from;
+      if (S.kind === 'chords') { const o = { pedal: 'ignorar', tol: 30 }; pieces = voicePerfs(S).map((p) => mdlPiece(mode, p, o, maxn)); from = 'a voz ligada'; }
+      else {
+        maeEnsure(); if (MDS.st !== 'ready') return { info: MDS.st === 'loading' ? maeStatus() : NEED };
+        if (!S.rows.length) return { info: 'nenhuma interpretação escolhida no objeto MAESTRO' };
+        const rows = S.rows.slice(0, maxp), o = S.opts;
+        const key = JSON.stringify([MDS.ver, mode, a.fonte, mode === 'lz' || mode === 'pst' ? maxn : 0, o.pedal, o.tol, a.fonte === 'trecho' ? [o.ini, o.fim] : 0, rows.map((r) => r.id)]);
+        const J = maeJob(n, 'mdlJob', key, rows, (r) => maeWork(r.id, mode === 'pst' ? 'lz' : mode === 'humanizar' ? 'perf' : mode, { pedal: o.pedal, tol: o.tol, maxn, trim: a.fonte === 'trecho' ? { ini: o.ini, fim: o.fim } : null }));
+        const st = maeJobState(n, 'mdlJob', J, 'lendo o corpus:'); if (st.show) return st.show;
+        pieces = st.res.filter((x) => !x?.err); from = `${rows.length} interpretação(ões) do MAESTRO${S.rows.length > rows.length ? ` (das ${S.rows.length}: «peças (máx.)»)` : ''}`;
+      }
+      // o treino fica guardado enquanto o corpus e as opções não mudam
+      const tkey = JSON.stringify([mode, mode === 'lz' ? 0 : a.ordem, a.simb, S.kind === 'chords' ? maeHash(S) : n.ui.mdlJob?.key]);
+      if (!n.ui.mdl || n.ui.mdl.key !== tkey) { const t0 = performance.now(); n.ui.mdl = { key: tkey, ...mdlTrain(mode, pieces, a), ms: performance.now() - t0 }; }
+      const T = n.ui.mdl, len = Math.max(1, Math.min(4000, Math.round(+a.len || 64)));
+      if (mode === 'lz' || mode === 'pst') {
+        const r = mode === 'lz'
+          ? OMLZ.call('lzgenerate', [T.dict, Math.round(+a.ordem) > 0 ? Math.round(+a.ordem) : null, len, true, 0, 0, null, null, null, lzRead('randomchoice'), null, lzRead('equal'), lzRead('equal2')], { seed, ms: 120000 })[0]
+          : OMLZ.call('pstgenerate', [T.pst, len, 0, null, null, null, lzRead('randomchoice'), null, lzRead('equal'), lzRead('equal2')], { seed, ms: 120000 })[0];
+        const g = lzSeqOut(r, 1);
+        return { out: g.out || null, modelo: T.model, seq: g.cross || lzV('lz-cross', T.cross, `fatias do corpus · ${T.nSl}`), info: `${mode.toUpperCase()} · ${from} · ${T.notes} notas → ${T.nSl} fatias${mode === 'lz' ? ` · ${T.size} nós` : ` · L = ${T.L}`} (aprendido em ${(T.ms / 1000).toFixed(1)} s)\n→ ${g.out ? `${g.out.chords.length} acordes` : 'nada gerado'} · semente ${seed}` };
+      }
+      if (mode === 'markov') {
+        const d = MX.markovGen(T.model, len, Math.max(0, +a.temp), rng(seed)), M = T.model;
+        const tr = M.train.flat().slice(0, 4000).map((s) => s.split('|')[0].split('.').map((x) => +x * 100));
+        return { out: maeVC(d, 'Markov (MAESTRO)'), modelo: M, estados: VC(tr), info: `Markov · ${from} · ${M.label} · ${M.nCtx} contextos\n→ ${d.chords.length} acordes · contexto médio usado ${d.ctx.toFixed(2)} (de ${M.order}) · temperatura ${+a.temp} · semente ${seed}` };
+      }
+      const v = a.in$v; if (!v || v.kind !== 'chords' || !v.chords.length) return { modelo: T.model, info: `${T.model.label}\nligue uma voz em «voz a humanizar»` };
+      const vs = POLY.isPoly(v) ? v.vozes : [POLY.timed(v)];
+      const hs = vs.map((x, k) => MX.humanize(POLY.timed(x), T.model, { amount: Math.max(0, +a.amount), art: a.art }, rng(seed + k)));
+      const outs = hs.map((d) => maeVC(d, 'humanizado'));
+      const out = POLY.isPoly(v) ? POLY.make(outs, v.poly?.labels || []) : outs[0], d0 = hs[0];
+      return { out, modelo: T.model, curva: BPF.val(d0.onsets.map((x, i) => ({ x, y: +d0.dyn[i].toFixed(2) })), 'free', 'linear'), tempo: BPF.val(d0.onsets.map((x, i) => ({ x, y: +d0.warp[i].toFixed(4) })), 'free', 'linear'),
+        info: `humanizar como: ${from} · ${T.model.label}\nacento da nota de cima ${T.model.accent.toFixed(1)} · ${T.model.vSlope >= 0 ? '+' : ''}${T.model.vSlope.toFixed(2)} vel/semitom · articulação ${T.model.art.toFixed(2)} · espalhamento dos acordes ${T.model.spread.toFixed(1)} ms (não aplicado: a voz tem um ataque por acorde)\n→ ${hs.reduce((s, d) => s + d.chords.length, 0)} acordes · intensidade ${+a.amount} · semente ${seed}` };
+    } };
+
+  /** o exemplo (Arquivo › Exemplos), depois do exemplo da LZ */
+  globalThis.maeExamples = () => [{ name: 'MAESTRO: abrir o dataset, analisar Chopin × Bach e gerar no estilo (LZ)', patch: { nodes: [
+    { id: 'n1', type: 'comentario', x: 40, y: 40, params: { text: '# MAESTRO: abrir o dataset, analisar Chopin × Bach e gerar no estilo (LZ)\nO MAESTRO v3.0.0 (Google Magenta; Hawthorne et al., ICLR 2019; licença CC BY-NC-SA 4.0, uso não comercial) tem 1276 interpretações de piano do International Piano-e-Competition, gravadas num Disklavier.\n1. Baixe o maestro-v3.0.0-midi.zip (56 MB) em magenta.withgoogle.com/datasets/maestro e clique «abrir maestro-v3.0.0-midi.zip…» num dos objetos MAESTRO (vale para os dois: o dataset é um só; ele fica guardado no navegador). Sem ele, as caixas só pedem o arquivo.\n2. Os dois MAESTRO filtram Chopin e Bach e usam as primeiras 8 interpretações de cada um (troque «interpretações» para escolher na lista).\n3. A análise compara os compositores (tabela: notas/s, velocidade, altura média, IOI, acorde, pedal e o perfil de classes de altura) — lendo as peças inteiras, em segundo plano.\n4. O modelo LZ aprende 30 s de 6 interpretações de Chopin (até 300 notas cada) e improvisa 60 fatias no estilo; a Partitura mostra o original (A) e o gerado (B). ↻ outra muda a semente.' } },
+    { id: 'n2', type: 'maestro', x: 560, y: 40, params: { comp: 'Frédéric Chopin', usar: 'filtradas', max: 8, fim: 30 } },
+    { id: 'n3', type: 'maestro', x: 40, y: 640, params: { comp: 'Johann Sebastian Bach', usar: 'filtradas', max: 8, fim: 30 } },
+    { id: 'n4', type: 'maestro-analise', x: 1090, y: 40, params: { modo: 'compositores' } },
+    { id: 'n5', type: 'maestro-modelo', x: 1090, y: 900, params: { modo: 'lz', len: 60, ordem: 0, maxn: 300, maxp: 6, seed: 1 } },
+    { id: 'n6', type: 'partitura', x: 1620, y: 40, params: { approx: '2' } }],
+  cables: [C('n2', 'sel', 'n4', 'in'), C('n3', 'sel', 'n4', 'b'), C('n2', 'sel', 'n5', 'sel'), C('n2', 'out', 'n6', 'in'), C('n5', 'out', 'n6', 'b')] } }];
+  globalThis.MAE_T = { MDS, maeUse, maeOpen, maeForget, maePerf, maeRestore, worker: () => !!MW.w };
+}
+
 /*__LIB_SLOT__*/
 
 const GROUPS = ['Básico', 'Fontes', 'Euler', 'Tonnetz', 'OMRC', 'Melodia (OM)', 'Ritmo (OM)', 'Métrica', 'Ritmo geométrico', 'Profile', 'Séries harmônicas', 'Modulação', 'Distorção e deslocamento', 'Outros tratamentos', 'Intervalos', 'Conjuntos', 'Análise', 'Visualizar', 'Esquisse', 'Alea', 'Chaos', 'OM-JI', 'Forte', 'MathTools', 'RepMus', 'OMScoreTools', 'Jazz', 'Patterns', 'Tabelas', 'Ableton Live'];
@@ -34672,13 +36000,14 @@ const EXAMPLES = [
 ];
 EXAMPLES.splice(EXAMPLES.findIndex((e) => /^nudrum:/.test(e.name)) + 1, 0, ...padExamples());
 EXAMPLES.splice(EXAMPLES.findIndex((e) => /^arranjo:/.test(e.name)) + 1, 0, ...maqExamples());
+EXAMPLES.splice(EXAMPLES.findIndex((e) => /^LZ:/.test(e.name)) + 1, 0, ...maeExamples());
 
 // ════════════════════════════════════════════════════════════════
 //  menus e diálogos
 // ════════════════════════════════════════════════════════════════
 // ─────────── menus no estilo GEM / cdp-web ───────────
 const GEN_TYPES = [['Fontes', ['acorde', 'nota', 'numero', 'lista', 'ritmo', 'bpf', 'lfo', 'array', 'midi-in', 'midi-rec', 'audio-in', 'audio-notas', 'pintura']], ['Tonnetz', ['tonnetz', 'netz-computepath', 'netz-computemelody', 'transpose-tonnetz']], ['Métrica', ['arvore', 'pulsemaker']], ['Harmonias de Euler', ['euler-genus', 'euler-series', 'euler-path']], ['Ritmo geométrico', ['euclides', 'poligonos', 'euclid-formas']], ['Melodia', ['dx->x']], ['Séries harmônicas', ['sp-gen', 'n-sp-gen']], ['Modulação', ['fmo', 'rm-gen']], ['Patterns (SuperCollider)', ['pbind']]];
-const LIBS = [['Ableton Live', 'extensão: trilhas, clips, marcadores e andamento'], ['Grids', 'sequenciador de bateria topográfico (Mutable Instruments, É. Gillet)'], ['Branches', 'dois portões de Bernoulli: cada evento sai em A ou B, por sorteio (Mutable Instruments, É. Gillet)'], ['Marbles', 'acaso com memória: gates, alturas em escalas e déjà vu; também varia melodias (Mutable Instruments, É. Gillet)'], ['Relatividade (Pyer & Boulé)', 'o paradoxo dos gêmeos: dois relógios, um deles viaja e toca T tempos enquanto a referência toca R (quiálteras T:R); Twin Paradox, Pyer & M. Boulé'], ['NuDrum (N. Bombaci)', 'sequenciador de bateria polimétrico: pulso e métrica por trilha, passos clicáveis e ritmo de entrada por trilha (NuDrum, Nicola Bombaci)'], ['Padrões e arranjo', 'sequenciador de bateria por padrões (do sequenciador do firmware da LXR V2, Erica Synths, código GPL v3: probabilidade, ratchet, deslocamento, polimetria, euclidiano, banco de padrões) e arranjo em canção'], ['Patterns', 'padrões do SuperCollider (Pbind, Pseq, Prand…)'], ['Jazz', 'cifras, progressões e voicings (drop, quartal, Kenny Barron…)'], ['OMScoreTools', 'BPF e partitura (K. Haddad, IRCAM)'], ['RepMus', 'representações musicais (IRCAM)'], ['Esquisse', 'espectral e intervalar (IRCAM)'], ['Alea', 'aleatoriedade (M. Malt)'], ['Chaos', 'sistemas dinâmicos (M. Malt)'], ['OM-JI', 'entonação justa (C. Neimog)'], ['Forte', 'conjuntos de classes de altura (A. Forte)'], ['Filters', 'filtros de listas e curvas: passa-baixa, média e mediana (M. Malt)'], ['Pareto', 'análise e ressíntese de escalas a partir de análises de som (F. Lévy, J. Bresson)'], ['Situation', 'busca com restrições de acordes e ritmos: o Lisp original do IRCAM rodando aqui (A. Bonnet, C. Rueda)'], ['Magenta', 'redes neurais do Google para MIDI: continuar uma melodia ou uma batida (MelodyRNN, DrumsRNN)'], ['Matter', 'física como fonte de notas: bolas, pinos e pêndulos (Matter.js, L. Brummitt)'], ['RQ', 'quantificação rítmica supervisionada: do que foi tocado à partitura, escolhendo entre transcrições (A. Ycart, F. Jacquemard, J. Bresson)'], ['OMTimePack', 'ritmos por processos de Markov, partição de ataques e pulso variável (Paul Nauert)'], ['OMPitchField', 'conjuntos de classes de altura, campos de alturas, filtros de acordes, vetores e ordenação (Paul Nauert)'], ['OMCS', 'regras de restrição do PWConstraints (motor PMC) e teoria dos conjuntos de classes de altura (Laurson, Sandred)'], ['OMClouds', 'restrições resolvidas por busca local: listas, ciclos e permutações (Charlotte Truchet)'], ['OMLindberg', 'técnicas de acordes de Magnus Lindberg: interpolação, reconstrução por classes, acordes simétricos de doze sons, fundamental virtual (Paulo Raposo)'], ['Infinity', 'a série infinita de Per Nørgård e os seus cânones (Paulo Raposo)'], ['OM-AIS', 'séries de todos os intervalos: as 3856 AIS, invariantes, link-chords, constelação, acordes AIS e contornos melódicos (Paulo Raposo)'], ['MuseScore', 'ler e gravar partituras do MuseScore (.mscx, .mscz), com quartos e oitavos de tom (OM_mscore, A. Vinjar)'], ['MathTools', 'Zn, Lewin, sequências, crivos e cânones (Andreatta, Agon, Amiot, Noll)'], ['LZ', 'modelagem de estilo: aprende peças (MIDI ou vozes) e improvisa no mesmo estilo (G. Assayag, IRCAM)'], ['Morphologie', 'análise, padrões, estruturas, distâncias e classificação de sequências (J. Baboni Schilingi e F. Voisin, IRCAM)'], ['Lenia', 'autômato celular contínuo: criaturas que deslizam, giram e pulsam viram melodias, acordes e ritmos; notas e ritmos passam pela evolução (Bert Chan)'], ['Combine', 'manipulações combinatórias à maneira de Ferneyhough: formas da série, Messiaen, Barraqué, serrotes, Kreuzspiel, espirais, permutação dinâmica (M. Malt, IRCAM)']];
+const LIBS = [['Ableton Live', 'extensão: trilhas, clips, marcadores e andamento'], ['Grids', 'sequenciador de bateria topográfico (Mutable Instruments, É. Gillet)'], ['Branches', 'dois portões de Bernoulli: cada evento sai em A ou B, por sorteio (Mutable Instruments, É. Gillet)'], ['Marbles', 'acaso com memória: gates, alturas em escalas e déjà vu; também varia melodias (Mutable Instruments, É. Gillet)'], ['Relatividade (Pyer & Boulé)', 'o paradoxo dos gêmeos: dois relógios, um deles viaja e toca T tempos enquanto a referência toca R (quiálteras T:R); Twin Paradox, Pyer & M. Boulé'], ['NuDrum (N. Bombaci)', 'sequenciador de bateria polimétrico: pulso e métrica por trilha, passos clicáveis e ritmo de entrada por trilha (NuDrum, Nicola Bombaci)'], ['Padrões e arranjo', 'sequenciador de bateria por padrões (do sequenciador do firmware da LXR V2, Erica Synths, código GPL v3: probabilidade, ratchet, deslocamento, polimetria, euclidiano, banco de padrões) e arranjo em canção'], ['Patterns', 'padrões do SuperCollider (Pbind, Pseq, Prand…)'], ['Jazz', 'cifras, progressões e voicings (drop, quartal, Kenny Barron…)'], ['OMScoreTools', 'BPF e partitura (K. Haddad, IRCAM)'], ['RepMus', 'representações musicais (IRCAM)'], ['Esquisse', 'espectral e intervalar (IRCAM)'], ['Alea', 'aleatoriedade (M. Malt)'], ['Chaos', 'sistemas dinâmicos (M. Malt)'], ['OM-JI', 'entonação justa (C. Neimog)'], ['Forte', 'conjuntos de classes de altura (A. Forte)'], ['Filters', 'filtros de listas e curvas: passa-baixa, média e mediana (M. Malt)'], ['Pareto', 'análise e ressíntese de escalas a partir de análises de som (F. Lévy, J. Bresson)'], ['Situation', 'busca com restrições de acordes e ritmos: o Lisp original do IRCAM rodando aqui (A. Bonnet, C. Rueda)'], ['Magenta', 'redes neurais do Google para MIDI: continuar uma melodia ou uma batida (MelodyRNN, DrumsRNN)'], ['MAESTRO (piano, Magenta)', 'o dataset MAESTRO v3.0.0 (Google Magenta, CC BY-NC-SA 4.0): 1276 interpretações de piano do Piano-e-Competition — abrir, filtrar, analisar (Chopin × Bach…) e modelar (LZ, Markov, humanizar)'], ['Matter', 'física como fonte de notas: bolas, pinos e pêndulos (Matter.js, L. Brummitt)'], ['RQ', 'quantificação rítmica supervisionada: do que foi tocado à partitura, escolhendo entre transcrições (A. Ycart, F. Jacquemard, J. Bresson)'], ['OMTimePack', 'ritmos por processos de Markov, partição de ataques e pulso variável (Paul Nauert)'], ['OMPitchField', 'conjuntos de classes de altura, campos de alturas, filtros de acordes, vetores e ordenação (Paul Nauert)'], ['OMCS', 'regras de restrição do PWConstraints (motor PMC) e teoria dos conjuntos de classes de altura (Laurson, Sandred)'], ['OMClouds', 'restrições resolvidas por busca local: listas, ciclos e permutações (Charlotte Truchet)'], ['OMLindberg', 'técnicas de acordes de Magnus Lindberg: interpolação, reconstrução por classes, acordes simétricos de doze sons, fundamental virtual (Paulo Raposo)'], ['Infinity', 'a série infinita de Per Nørgård e os seus cânones (Paulo Raposo)'], ['OM-AIS', 'séries de todos os intervalos: as 3856 AIS, invariantes, link-chords, constelação, acordes AIS e contornos melódicos (Paulo Raposo)'], ['MuseScore', 'ler e gravar partituras do MuseScore (.mscx, .mscz), com quartos e oitavos de tom (OM_mscore, A. Vinjar)'], ['MathTools', 'Zn, Lewin, sequências, crivos e cânones (Andreatta, Agon, Amiot, Noll)'], ['LZ', 'modelagem de estilo: aprende peças (MIDI ou vozes) e improvisa no mesmo estilo (G. Assayag, IRCAM)'], ['Morphologie', 'análise, padrões, estruturas, distâncias e classificação de sequências (J. Baboni Schilingi e F. Voisin, IRCAM)'], ['Lenia', 'autômato celular contínuo: criaturas que deslizam, giram e pulsam viram melodias, acordes e ritmos; notas e ritmos passam pela evolução (Bert Chan)'], ['Combine', 'manipulações combinatórias à maneira de Ferneyhough: formas da série, Messiaen, Barraqué, serrotes, Kreuzspiel, espirais, permutação dinâmica (M. Malt, IRCAM)']];
 // as funções do núcleo do OpenMusic 6 (libs/om6): as séries que geram também entram em Gerar
 GEN_TYPES.push(['Séries (OM)', ['arithm-ser', 'geometric-ser', 'fibo-ser', 'prime-ser', 'inharm-ser']]);
 // o Grids (Mutable Instruments) também gera ritmo: entra em Gerar › Ritmo, além de Bibliotecas › Ritmo
@@ -34703,7 +36032,7 @@ const GEN_MENU = [['Fontes', ['Fontes']], ['Alturas e harmonia', ['Séries harm�
 /** Bibliotecas, por assunto (uma biblioteca nova que não esteja aqui aparece em «Outras») */
 const LIB_CATS = [['Alturas e harmonia', ['Esquisse', 'OM-JI', 'Forte', 'MathTools', 'RepMus', 'OMPitchField', 'OMLindberg', 'OM-AIS', 'Infinity', 'Combine', 'Jazz']],
   ['Ritmo', ['OMTimePack', 'RQ', 'Grids', 'Branches', 'Marbles', 'Relatividade (Pyer & Boulé)', 'NuDrum (N. Bombaci)', 'Padrões e arranjo']], ['Restrições', ['Situation', 'OMCS', 'OMClouds']],
-  ['Acaso, processos e estilo', ['Alea', 'Chaos', 'Matter', 'Lenia', 'Magenta', 'LZ']], ['Análise', ['Morphologie', 'Pareto', 'Filters']],
+  ['Acaso, processos e estilo', ['Alea', 'Chaos', 'Matter', 'Lenia', 'Magenta', 'MAESTRO (piano, Magenta)', 'LZ']], ['Análise', ['Morphologie', 'Pareto', 'Filters']],
   ['Partitura e arquivos', ['OMScoreTools', 'MuseScore']], ['Integrações', ['Ableton Live', 'Patterns']]];
 /** submenu que junta vários grupos, cada um com o seu título (um grupo só: os subgrupos dele como títulos) */
 function groupsMenu(label, gs, skip = null) {
@@ -34753,6 +36082,8 @@ const MENUS = {
       { label: 'Colar', k: `${MODK}V`, act: () => pasteSel({ askSystem: true }) },
       { label: `Duplicar ${what}`, k: `${MODK}D`, act: () => duplicateSel() },
       { label: `Apagar ${what}`, k: 'Delete', act: () => deleteSel() },
+      { label: `Sortear parâmetros (random) — ${what}`, act: () => RND.run(targets()) },
+      { label: `Sortear parâmetros… (escolher) — ${what}`, act: () => RND.dlg(targets()) },
       { sep: true },
       { label: 'Selecionar tudo', k: `${MODK}A`, act: selAll },
       { label: 'Limpar a seleção', k: 'Esc', act: () => { selClear(); selInfo(); } },
@@ -35289,6 +36620,7 @@ function dlgHelp() {
       h('li', { html: '<b>BPF e OMScoreTools:</b> o objeto <i>BPF (curva)</i>, em Gerar → Fontes, é uma break-point function desenhável: clique no gráfico para criar um ponto, arraste para movê-lo, duplo clique para apagá-lo; <i>✎ Livre</i> desenha à mão, <i>↔ Ajustar</i> enquadra os eixos e <i>↓ SVG</i> salva o desenho. No eixo de alturas a grade mostra as notas e o ímã prende a ½, ¼ ou ⅛ de tom; a curva sai como melodia (n amostras ou uma nota por ponto, com o x como tempo), como bpf ◆ e como lista de valores. O grupo <i>OMScoreTools</i> (Karim Haddad) liga curvas e partituras: <i>bpf->voice</i> (os intervalos de x viram o ritmo de um compasso, quantizável), <i>bpf-dyn-to-score</i> e <i>scale-dyn</i> (dinâmicas), <i>voice->y-markers</i>, <i>bpf-xscale</i>, <i>scale-bpf-lim</i>, <i>microphonie</i> (notas → curva em degraus), <i>bpf-trans</i> (contrário, retrógrado) e <i>bpf-affine->step</i>. As saídas de lista e de acordes também entram em portas de curva.' }),
       h('li', { html: '<b>Selecionar, copiar e colar:</b> arraste na mesa vazia para desenhar um retângulo que seleciona as janelas que ele toca; <span class="kbd">⇧</span> ou <span class="kbd">⌘/Ctrl</span> + clique na barra de título junta ou tira uma janela da seleção; <span class="kbd">Ctrl/⌘ A</span> seleciona tudo e <span class="kbd">Esc</span> limpa. Arrastar uma janela selecionada move todas. <span class="kbd">Ctrl/⌘ C</span> copia, <span class="kbd">X</span> recorta, <span class="kbd">V</span> cola (no cursor), <span class="kbd">D</span> duplica e <span class="kbd">Delete</span> apaga — também em Editar e no menu do objeto. A cópia leva os parâmetros (o desenho da Pintura, a grade do Lenia, o patch de dentro de um subpatch) e os cabos entre os objetos copiados, e vale entre abas, subpatches, abstrações e laços, e até entre duas janelas do navegador. <span class="kbd">Ctrl/⌘ Z</span> desfaz colar, recortar, apagar, duplicar e mover (<span class="kbd">⇧ Ctrl/⌘ Z</span> refaz). No iPad: o botão de seleção (retângulo tracejado, na barra de cima) liga o modo seleção — arrastar o dedo na mesa seleciona e tocar na barra de uma janela a junta à seleção; os comandos ficam em Editar. Dentro de um campo de texto, os atalhos copiam e colam o texto.' }),
       h('li', { html: '<b>Ajuda dos objetos e menu do objeto:</b> o <b>?</b> na barra de cada janela abre, numa aba nova, um patch de ajuda: o que o objeto faz, as entradas e saídas, os exemplos em que ele aparece e uma aplicação simples, pronta para mexer. O botão direito do mouse (ou dois toques rápidos na janela, na tela de toque, fora dos campos e botões) abre o menu do objeto: ajuda, duplicar, recolher, desconectar, apagar.' }),
+      h('li', { html: '<b>random (sortear os parâmetros):</b> no menu do objeto (botão direito; na tela de toque, o dedo parado ou dois toques na janela), <i>random</i> sorteia todos os parâmetros do objeto; <i>random (só os números)</i> deixa os menus e as alturas; <i>random… (escolher)</i> abre a lista dos parâmetros, para marcar os que entram, e a <i>variação %</i> (100% = a faixa inteira; menos que isso, perto do valor atual). Os números ficam na faixa do rótulo — «(0–1)», «%», BPM, semente — ou numa faixa tirada do valor inicial; os menus tomam outra opção; listas de números, proporções e alturas guardam o tamanho e a faixa. Ficam como estão: as entradas ligadas por cabo, o texto livre (títulos, nomes, código), as curvas, os campos vazios e o estado interno (a maquete, o banco de padrões, a escolha do MAESTRO…); o recado embaixo diz quantos foram sorteados e quais ficaram. Com vários objetos selecionados (e o clicado entre eles), vale para todos; Editar › Sortear parâmetros faz o mesmo com a seleção. Cada sorteio é um passo de desfazer (<span class="kbd">Ctrl/⌘ Z</span>).' }),
       h('li', { html: '<b>Tutoriais e ajudas do OpenMusic:</b> em Ajuda › Tutoriais do OpenMusic, os tutoriais numerados do manual do OM6 e os de árvores rítmicas, convertidos dos patches originais (os textos ficam em inglês). As funções do núcleo do OM que têm patch de ajuda no OM (x-append, arithm-ser, mat-trans, om-scale…) mostram esse patch, convertido, no «?». Em Ajuda › Exemplos das bibliotecas (originais), os exemplos e tutoriais que vêm com as bibliotecas (OMRC, OMCS, Situation, OM-AIS, OMLindberg, Morphologie, MathTools…): nelas, as caixas chamam as funções do código Lisp original (do núcleo do OM6 ou da biblioteca), com as entradas e as saídas do OM (as de palavra-chave como :nome valor; os valores a mais de uma função em saídas a mais); os objetos CHORD-SEQ, CHORD, NOTE, MULTI-SEQ, BPF-LIB e POP-UP-MENU têm as entradas e saídas das caixas do OM. Os exemplos da OMLindberg foram conferidos caixa a caixa, inclusive dentro dos subpatches, contra o mesmo patch rodado no SBCL. Caixas e subpatches em modo λ viram funções (as entradas sem cabo são os argumentos), como no OM; uma POLY mostra uma voz por vez («qual voz»); uma busca de todas as soluções da OM-AIS só roda quando se escolhe «sim» em «calcular». O que não tem correspondente aqui (OMLOOP, maquetes, áudio, MIDI, SDIF, editores) fica de fora ou anotado no comentário. Básico › Funções do OpenMusic › Valores e funções traz o «valor» (as caixas de valor e o TEXT-BOX do OM), a «função do OM» (qualquer função do núcleo pelo nome) e a «voice».' }),
       h('li', { html: '<b>Leitura:</b> em Opções, «Letra» (nítida ou pixel), «Tamanho do texto» e «Descrição nas janelas» (resumida, completa ou nenhuma; a completa aparece também ao parar o mouse sobre a descrição). Os nomes das entradas não são mais cortados: quebram em linhas. O objeto <i>Comentário</i> (Básico › Anotar) põe texto no patch.' }),
       h('li', { html: '<b>Básico:</b> o menu Básico reúne o essencial para montar um patch. <i>voz</i> junta alturas e ritmo; <i>concatenar</i> põe vozes em sequência (com ritmo e compassos), <i>sobrepor</i> as põe ao mesmo tempo numa voz só, <i>poly</i> as sobrepõe sem misturá-las (cada uma com o seu ritmo, compassos e andamento; a Partitura mostra uma pauta por voz, alinhadas pelo tempo real), <i>repetir</i> e <i>trecho</i> repetem e recortam; <i>empilhar</i> e <i>flat</i> passam de melodia a acorde e de volta. <i>somar alturas</i> e <i>multiplicar intervalos</i> são o om+ e o om* sobre acordes. Em Aritmética, <i>om+ om- om* om/</i> operam sobre listas e ritmos (aceitam frações como 1/8), com <i>arithm-ser</i>, <i>om-scale</i> e <i>om-round</i>; em Listas e ritmos, <i>x-append</i>, <i>repeat-n</i>, <i>subseq</i>, <i>reverse</i> e o <i>ritmo resultante</i> de dois ritmos.' }),
@@ -35301,6 +36633,7 @@ function dlgHelp() {
       h('li', { html: '<b>Transcrever áudio:</b> Arquivo → Transcrever áudio (notas)… cria o objeto <i>transcrever áudio</i>, que usa a rede neural Basic Pitch (Spotify, código aberto) para tirar de uma gravação as notas tocadas, inclusive acordes, com início, duração e intensidade. É diferente do <i>importar áudio</i>, que devolve parciais do espectro: aqui saem notas, como num arquivo MIDI. Em <i>alturas</i> escolha o semitom ou o desvio microtonal medido (¼, ⅛ de tom ou cents); em <i>ritmo</i>, a grade quantiza no andamento informado. Tudo roda no próprio navegador; arquivos de até 5 minutos.' }),
       h('li', { html: '<b>Situation:</b> a biblioteca de restrições do IRCAM roda aqui com o seu código Lisp original, num interpretador de Common Lisp embutido. Os campos se escrevem como nas caixas do OpenMusic — <code>0_5 (60_72) 6_9 (48_60)</code>, <code>(0_7 (not (ints 12 t)))</code> — e os predicados de <i>user-cnstr</i> e <i>generic-cnstr</i>, em Lisp: <code>(lambda (a b) (/= (first a) (first b)))</code>. As restrições se ligam em <i>list</i> (ou umas nas outras) e daí em <i>cnstr</i> do <i>csolver</i>. Se a busca demorar, mude «calcular» para <i>só no botão</i>; quando o tempo acaba, sai a solução parcial. Veja Arquivo → Exemplos → Situation.' }),
       h('li', { html: '<b>Magenta:</b> os objetos <i>Continue</i> e <i>Continue (bateria)</i> prolongam uma melodia ou uma batida com as redes MelodyRNN e DrumsRNN do Google (as do Magenta Studio). Os modelos (13 e 12 MB) não vão dentro da página: no site, vêm da pasta <code>magenta/</code> ao lado do <code>index.html</code>; aberto de outro jeito, solte o <code>melody_rnn.zip</code> ou o <code>drum_kit_rnn.zip</code> no objeto uma vez (fica guardado no navegador; no Live, na pasta da extensão).' }),
+      h('li', { html: '<b>MAESTRO (piano, Magenta):</b> o objeto <i>MAESTRO</i> abre o dataset MAESTRO v3.0.0 (1276 interpretações de piano; Google, CC BY-NC-SA 4.0, uso não comercial) a partir do <code>maestro-v3.0.0-midi.zip</code> que você baixa do site do Magenta (ou da pasta extraída): filtra por compositor, título, ano, split e duração e tira vozes (com velocidades e o pedal). <i>MAESTRO: análise do corpus</i> mede e compara compositores; <i>MAESTRO: modelar e gerar</i> aprende o estilo (LZ, PST, Markov) ou a interpretação («humanizar como…»). O zip fica guardado no navegador (no Live, na pasta da extensão); o patch guarda só os filtros e a escolha.' }),
       h('li', { html: '<b>Pintura:</b> em Gerar → Fontes, um paint (inspirado no jspaint) que gera partituras: desenhe na caixa com lápis, pincel, linha, retângulo, retângulo cheio, borracha e conta-gotas (mouse, caneta ou dedo; ↶ ↷ desfazem e refazem). O tempo corre para a direita ao longo dos <i>compassos</i> (<code>4 × 4/4</code>, <code>4/4 3/4</code> ou <code>((4 4) (3 4))</code>), a altura sobe. Cada cor é independente: escolhê-la na paleta abre a sua linha, com as alturas (notas escritas ou uma <i>escala</i> — tônica, tipo, nota grave e aguda —, inclusive cromáticas em ¼ e ⅛ de tom), a quantização (1/8, tercinas 1/12, quintinas 1/20…) e uma entrada de cabo própria; × tira a cor. Em <i>precisão = alta</i> (1/32 ou 1/64) cada faixa de linhas do desenho vira uma altura e a Partitura mostra as notas no tempo exato: o desenho aparece na partitura. Como no jspaint, <i>seleção</i> e <i>seleção livre</i> recortam, copiam, colam (o pedaço flutua até um clique fora ou Enter; Esc desiste), duplicam um compasso à direita e movem, encaixando na grade; virar na horizontal é o retrógrado, na vertical a inversão, esticar é aumentação ou diminuição; o que se copia guarda as cores e cola em outra caixa Pintura. «⤢ abrir em janela» (ou dois toques no desenho) abre o editor grande, com zoom e alças para dar ao desenho o tamanho que precisar (até 2048 × 512): «manter» deixa o desenho no lugar e, com «acrescentar compassos», ganha compassos novos; «esticar» estica junto (aumentação); «esticar / comprimir…» muda em %. As saídas separam <i>alturas</i> e <i>ritmo</i> (a árvore do OM): ligadas a uma <i>voice</i>, refazem a voz (com várias cores, «qual voz» escolhe a cor); <i>acordes</i> junta todas as cores para a Partitura.' }),
       h('li', { html: '<b>MIDI ao vivo:</b> <i>entrada MIDI</i> (Gerar → Fontes) grava o que você toca num teclado, com tempo de gravação e apagar; <i>saída MIDI</i> (Visualizar) manda um fluxo para uma porta MIDI, uma vez ou em laço. Usam o Web MIDI do navegador (Chrome, Edge, Firefox), que pede permissão na primeira vez.' }),
       h('li', { html: '<b>Ajustar notas e PDF:</b> na <i>Partitura</i>, clique num acorde (ou numa cabeça de nota) e use ↑ ↓ para subir ou descer um passo da aproximação escolhida (semitom, ¼ ou ⅛ de tom); os ajustes saem pelas saídas do objeto. «↓ PDF» salva a partitura num arquivo PDF, em folhas A4.' }),
@@ -35343,6 +36676,7 @@ function dlgAbout() {
     h('p', { text: 'Grids: Émilie Gillet / Mutable Instruments (módulo Eurorack Grids, 2012; firmware em github.com/pichenettes/eurorack, GPL v3, com a avrlib, github.com/pichenettes/avril). O gerador de padrões (pattern_generator.cc), os 25 nós do mapa e a tabela euclidiana (resources.cc) e o gerador de acaso do avrlib foram portados para JavaScript e conferidos, bit a bit, contra o código C++ original compilado.' }),
     h('p', { text: 'Branches: Émilie Gillet / Mutable Instruments (módulo Eurorack Branches, 2012; firmware em github.com/pichenettes/eurorack, GPL v3). O gerador de acaso (LFSR de 32 bits), a tabela linear do conversor e a regra de decisão com toggle e latch (branches.cc) foram portados para JavaScript e conferidos contra o código C++ original compilado, com o laço do módulo inteiro.' }),
     h('p', { text: 'Marbles: Émilie Gillet / Mutable Instruments (módulo Eurorack Marbles, 2017; firmware em github.com/pichenettes/eurorack, licença MIT, com a stmlib, github.com/pichenettes/stmlib). Os geradores T e X/Y, as rampas, o extrator de relógio, o laço do déjà vu, as distribuições beta e as suas tabelas, o quantizador, o lag, o gravador de escalas e as 6 escalas da memória do módulo foram portados para JavaScript em precisão simples e conferidos, amostra a amostra, contra o código C++ original compilado.' }),
+    h('p', { text: 'MAESTRO: o dataset MAESTRO v3.0.0 (Curtis Hawthorne, Andriy Stasyuk, Adam Roberts, Ian Simon, Cheng-Zhi Anna Huang, Sander Dieleman, Erich Elsen, Jesse Engel e Douglas Eck, «Enabling Factorized Piano Music Modeling and Generation with the MAESTRO Dataset», ICLR 2019; Google Magenta; magenta.withgoogle.com/datasets/maestro), sob a licença Creative Commons BY-NC-SA 4.0: uso não comercial, com atribuição, derivados sob a mesma licença. Nada do dataset vai dentro da página: quem usa abre o zip, que fica no navegador dele. O pedal que prolonga as notas segue o sequences_lib do Magenta (Apache 2.0).' }),
     h('p', { text: 'Padrões e arranjo: o sequenciador do firmware da LXR V2 (Erica Synths, 2012–2026; github.com/erica-synths/lxr-desktop-app, código GPL v3: sequencer.c e EuklidGenerator.c). O sequenciador (polimetria, probabilidade, flam/ratchet, shift, shuffle, roll, automação por passo, modo canção) e o gerador euclidiano foram portados para JavaScript e conferidos contra o código C original compilado, disparo a disparo; o encadeamento de padrões, comentado no firmware atual, volta no arranjo como estava escrito. É um porte modificado, sem afiliação com a Erica Synths nem aprovação dela; «Erica Synths» e «LXR» são marcas da Erica Synths.' }),
     h('p', { text: 'Jazz: biblioteca própria do OMDamião (não vem do OpenMusic), com convenções de voicing de Bill Evans, Bud Powell, McCoy Tyner, Kenny Barron, George Shearing e Barry Harris.' }),
     h('p', { text: 'OMScoreTools: Karim Haddad (IRCAM; github.com/openmusic-project/OMScoreTools), funções de voice-bpf.lisp. A exportação para gnuplot foi trocada pelo SVG do próprio editor de BPF.' }),
